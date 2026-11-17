@@ -3402,7 +3402,10 @@ function ReferenceSidePanel({ open, initialTab = 'node', initialEditTargetId = n
   }
 
   async function removeNode(target) {
-    if (!confirm(`'${target.name}' 노드를 삭제할까요?\n메시지는 삭제되지 않으며 송수신 노드 연결만 해제됩니다.`)) return;
+    const warning = nodeOnly
+      ? '연결된 IP/NIC가 있으면 삭제되지 않습니다. 장비 식별 정보는 삭제될 수 있습니다.'
+      : '메시지는 삭제되지 않으며 송수신 노드 연결만 해제됩니다. 체계 구성의 등록 정보는 별도로 확인하세요.';
+    if (!confirm(`'${target.name}' 노드를 삭제할까요?\n${warning}`)) return;
     await onDeleteTarget?.(target.id);
     if (Number(editingNodeId) === Number(target.id)) resetNodeForm();
   }
@@ -3418,7 +3421,7 @@ function ReferenceSidePanel({ open, initialTab = 'node', initialEditTargetId = n
   const isNodeTab = tab === 'node';
   return (
     <div className="reference-drawer-layer" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose?.(); }}>
-      <aside className="reference-drawer" role="dialog" aria-modal="true" aria-label="노드 및 태그 추가">
+      <aside className="reference-drawer" role="dialog" aria-modal="true" aria-label={nodeOnly ? '노드 관리' : '노드 및 태그 추가'}>
         <div className="reference-drawer-head">
           <div><strong>{nodeOnly ? '노드 관리' : '추가'}</strong><span>{nodeOnly ? '인터페이스 설계와 동일한 노드 목록을 관리합니다.' : '노드와 태그를 현재 화면에서 관리합니다.'}</span></div>
           <button type="button" className="icon ghost-icon reference-drawer-close" aria-label="닫기" title="닫기" onClick={onClose}>×</button>
