@@ -364,6 +364,22 @@ class SystemIpAssignment(Base):
     node = relationship("IntegrationTarget", back_populates="system_ip_assignments")
     server_connections = relationship("SystemTransportConnection", foreign_keys="SystemTransportConnection.server_ip_id", back_populates="server_ip", cascade="all, delete-orphan")
     client_connections = relationship("SystemTransportConnection", foreign_keys="SystemTransportConnection.client_ip_id", back_populates="client_ip", cascade="all, delete-orphan")
+    port_bindings = relationship("SystemPortBinding", back_populates="ip_assignment", cascade="all, delete-orphan")
+
+
+class SystemPortBinding(Base):
+    """TCP/UDP port configuration for a single IP/NIC, fixed or dynamic."""
+    __tablename__ = "system_port_bindings"
+    id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    ip_assignment_id = Column(Integer, ForeignKey("system_ip_assignments.id", ondelete="CASCADE"), nullable=False)
+    protocol = Column(String(8), nullable=False, default="TCP")
+    port_mode = Column(String(8), nullable=False, default="FIXED")
+    port = Column(Integer, nullable=True)  # NULL means AUTO, never an assigned port 0
+    description = Column(String(255), nullable=False, default="")
+    ip_assignment = relationship("SystemIpAssignment", back_populates="port_bindings")
+    server_connections = relationship("SystemTransportConnection", foreign_keys="SystemTransportConnection.server_binding_id", back_populates="server_binding")
+    client_connections = relationship("SystemTransportConnection", foreign_keys="SystemTransportConnection.client_binding_id", back_populates="client_binding")
 
 
 class SystemTransportConnection(Base):
@@ -380,5 +396,10 @@ class SystemTransportConnection(Base):
     client_port = Column(Integer, nullable=True)
     protocol = Column(String(8), default="TCP", nullable=False)
     note = Column(Text, default="", nullable=False)
+    # Nullable FKs preserve existing manually entered connections on this feature branch.
+    server_binding_id = Column(Integer, ForeignKey("system_port_bindings.id", ondelete="RESTRICT"), nullable=True)
+    client_binding_id = Column(Integer, ForeignKey("system_port_bindings.id", ondelete="RESTRICT"), nullable=True)
+    server_binding = relationship("SystemPortBinding", foreign_keys=[server_binding_id], back_populates="server_connections")
+    client_binding = relationship("SystemPortBinding", foreign_keys=[client_binding_id], back_populates="client_connections")
     server_ip = relationship("SystemIpAssignment", foreign_keys=[server_ip_id], back_populates="server_connections")
     client_ip = relationship("SystemIpAssignment", foreign_keys=[client_ip_id], back_populates="client_connections")
