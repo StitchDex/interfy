@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 from urllib.parse import quote
 from sqlalchemy.orm import Session, joinedload
@@ -7,7 +9,7 @@ from ..auth import get_current_user
 from ..services.exporters import render_header, render_idl, render_csharp, to_macro_name
 from ..services.idd_docx import render_idd_docx
 from ..services.idd_hwpx import render_idd_hwpx
-from .project_json import export_project_json as export_project_json_impl
+from .project_json import export_project_json as export_project_json_impl, _json_response
 
 router = APIRouter(tags=["export"])
 
@@ -195,6 +197,61 @@ def export_group_csharp(group_id: int, timezone: str | None = None, db: Session 
     acronym = project.acronym or to_macro_name(project.name)
     filename_base = f"{safe_filename_part(acronym)}_{safe_filename_part(group.name)}"
     return file_response(render_csharp(project.name, messages, acronym, timezone_name=timezone), f"{filename_base}.cs", "text/x-csharp")
+
+
+def tag_scoped_project_json(project_data: dict, included_message_names: set[str], tag_name: str) -> dict:
+    """Subset a project JSON without breaking offline editor/partial-update format.
+
+    included_message_names must already include transitively referenced STRUCT/Enum
+    names (as calculated by messages_with_dependencies).
+    """
+    included = {str(name).lower() for name in included_message_names}
+    content = dict(project_data)
+    content["messages"] = [
+        row for row in project_data.get("messages", [])
+        if str(row.get("struct_name") or row.get("name") or "").lower() in included
+    ]
+    content["groups"] = [
+        {**group, "messages": [
+            name for name in group.get("messages", [])
+            if str(name).lower() in included
+        ]}
+        for group in project_data.get("groups", [])
+        if any(str(name).lower() in included for name in group.get("messages", []))
+    ]
+    # Retain other tags only if they are assigned to an included message.
+    # Always include the selected tag (even if it contains no messages).
+    content["labels"] = [
+        {**label, "messages": [
+            name for name in label.get("messages", [])
+            if str(name).lower() in included
+        ]}
+        for label in project_data.get("labels", [])
+        if str(label.get("name") or "").lower() == tag_name.lower()
+        or any(str(name).lower() in included for name in label.get("messages", []))
+    ]
+    used_targets = {
+        str(name).lower()
+        for message in content["messages"]
+        for name in (message.get("tx_targets", []) + message.get("rx_targets", []))
+    }
+    content["integration_targets"] = [
+        row for row in project_data.get("integration_targets", [])
+        if str(row.get("name") or "").lower() in used_targets
+    ]
+    return content
+
+
+@router.get("/labels/{label_id}/export/json")
+def export_label_json(label_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Tag-scoped JSON for the existing Interfy offline editor and partial updater."""
+    project, label, messages = label_messages(db, label_id)
+    project_json = json.loads(export_project_json_impl(project.id, db, current_user).body)
+    selected_names = {message.struct_name or message.name for message in messages}
+    content = tag_scoped_project_json(project_json, selected_names, label.name)
+    acronym = project.acronym or to_macro_name(project.name)
+    filename_base = f"{safe_filename_part(acronym)}_{safe_filename_part(label.name)}"
+    return _json_response(content, f"{filename_base}.json")
 
 
 @router.get("/labels/{label_id}/export/header")
