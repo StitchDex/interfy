@@ -180,6 +180,7 @@ export default function SystemConfigurationPanel({ api, projectId, integrationTa
   }
 
   function selectGraphNode(id) {
+    setTab('connections');
     setSelectedPairKey(null);
     setSelectedGraphNodes(current => {
       if (current.includes(id)) return current.filter(value => value !== id);
@@ -188,6 +189,7 @@ export default function SystemConfigurationPanel({ api, projectId, integrationTa
   }
 
   function selectGraphPair(key) {
+    setTab('connections');
     setSelectedGraphNodes([]);
     setSelectedPairKey(current => current === key ? null : key);
   }
@@ -231,12 +233,25 @@ export default function SystemConfigurationPanel({ api, projectId, integrationTa
 
   return (
     <div className="system-config-page">
-      <section className="card system-config-intro">
-        <div>
-          <h2>체계 구성</h2>
-          <p>인터페이스 설계의 노드를 기준으로 장비 ID, 탑재 HW, 고유 식별자, IP/NIC 및 통신 연결을 한곳에서 관리합니다.</p>
+      <section className="card system-topology-card" aria-label="체계 구성도">
+        <div className="card-title">
+          <h3>체계 구성도</h3>
+          <div className="system-topology-actions">
+            <button type="button" className="ghost" onClick={showAllGraph} disabled={!loaded}>전체 보기</button>
+            <button type="button" className="ghost" onClick={() => execute(reload, '최신 정보를 불러왔습니다.')} disabled={busy}><RefreshCw size={15}/> 새로고침</button>
+          </div>
         </div>
-        <button type="button" className="ghost" onClick={() => execute(reload, '최신 정보를 불러왔습니다.')} disabled={busy}><RefreshCw size={15}/> 새로고침</button>
+        {loaded ? (
+            <SystemTopologyGraph
+              nodes={nodes} connections={connections}
+              selectedNodeIds={selectedGraphNodes} selectedPairKey={selectedPairKey}
+              onSelectNode={selectGraphNode} onSelectPair={selectGraphPair}
+              onShowAll={showAllGraph}
+              onEditNode={nodeId => onOpenNodeManager(nodeId)}
+              onOpenNodeManager={onOpenNodeManager}
+              protocolFilter={topologyFilter} onChangeProtocolFilter={setTopologyFilter}
+            />
+        ) : <div className="system-topology-loading">체계 구성 정보를 불러오는 중...</div>}
       </section>
 
       <div className="system-config-tabs" role="tablist" aria-label="체계 구성 관리">
@@ -246,7 +261,6 @@ export default function SystemConfigurationPanel({ api, projectId, integrationTa
       </div>
 
       {notice && <div className="notice" role="status">{notice}</div>}
-      {!loaded && <div className="card">체계 구성 정보를 불러오는 중...</div>}
 
       {loaded && tab === 'nodes' && (
         <div className="system-config-stack">
@@ -372,21 +386,6 @@ export default function SystemConfigurationPanel({ api, projectId, integrationTa
 
       {loaded && tab === 'connections' && (
         <div className="system-config-stack">
-          <section className="card system-topology-card">
-            <div className="card-title">
-              <div><h3>통신 연결 관계도</h3><p>기존 인터페이스 설계처럼 노드·연결선을 선택해 아래 목록을 필터링합니다. 선은 같은 두 노드의 통신을 묶어 보여줍니다.</p></div>
-              <button type="button" className="ghost" onClick={showAllGraph}>전체 보기</button>
-            </div>
-            <SystemTopologyGraph
-              nodes={nodes} connections={connections}
-              selectedNodeIds={selectedGraphNodes} selectedPairKey={selectedPairKey}
-              onSelectNode={selectGraphNode} onSelectPair={selectGraphPair}
-              onShowAll={showAllGraph}
-              onEditNode={nodeId => onOpenNodeManager(nodeId)}
-              onOpenNodeManager={onOpenNodeManager}
-              protocolFilter={topologyFilter} onChangeProtocolFilter={setTopologyFilter}
-            />
-          </section>
           <section className="card" id="system-connection-list">
             <div className="card-title">
               <div>
