@@ -714,12 +714,12 @@ function MessageManagementPage({ api, me, projectId, onBackToProjects, onLogout,
 
         <div className="message-tree-title">설계</div>
         <button className={activePanel === 'design' || activePanel === 'partialUpdate' ? 'side-nav active' : 'side-nav'} onClick={() => changePanel('design')}><Layers size={16}/> 인터페이스 설계</button>
-        <button className={activePanel === 'systemConfiguration' ? 'side-nav active' : 'side-nav'} onClick={() => changePanel('systemConfiguration')}><Settings size={16}/> 체계 구성</button>
 
         <div className="message-tree-title sidebar-section-spacer">산출</div>
         <button className={activePanel === 'groups' ? 'side-nav active' : 'side-nav'} onClick={() => changePanel('groups')}><Download size={16}/> 출력</button>
 
         <div className="message-tree-title sidebar-section-spacer">관리</div>
+        <button className={activePanel === 'systemConfiguration' ? 'side-nav active' : 'side-nav'} onClick={() => changePanel('systemConfiguration')}><Settings size={16}/> 체계 구성</button>
         <button className={activePanel === 'settings' ? 'side-nav active' : 'side-nav'} onClick={() => changePanel('settings')}><Settings size={16}/> 프로젝트 설정</button>
         <button className={activePanel === 'history' ? 'side-nav active' : 'side-nav'} onClick={() => changePanel('history')}><History size={16}/> 이력 관리</button>
         <button className={activePanel === 'account' ? 'side-nav active' : 'side-nav'} onClick={() => changePanel('account')}><UserCircle size={16}/> 계정</button>
