@@ -20,7 +20,7 @@ function NodePicker({ nodes, value, onChange, label = '노드' }) {
 }
 
 export default function SystemConfigurationPanel({ api, projectId, integrationTargets = [], onOpenNodeManager }) {
-  const [tab, setTab] = useState('nodes');
+  const [tab, setTab] = useState('connections');
   const [configuration, setConfiguration] = useState(EMPTY_CONFIGURATION);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -260,7 +260,7 @@ export default function SystemConfigurationPanel({ api, projectId, integrationTa
           <section className="card">
             <div className="card-title">
               <div><h3>장비·SW 목록</h3><p>기존 인터페이스 노드를 재사용하므로 노드 이름을 변경해도 설정이 유지됩니다.</p></div>
-              <button className="ghost" type="button" onClick={onGoToDesign}><Plus size={15}/> 노드 추가·관리</button>
+              <button className="ghost" type="button" onClick={() => onOpenNodeManager()}><Plus size={15}/> 노드 추가·관리</button>
             </div>
             <div className="table-wrap"><table className="system-config-table">
               <thead><tr><th>노드(SW)</th><th>Device ID</th><th>탑재 HW</th><th>Hostname</th><th>비고</th></tr></thead>
@@ -318,44 +318,148 @@ export default function SystemConfigurationPanel({ api, projectId, integrationTa
               </div>
             </form>
           </section>
+          <section className="card">
+            <div className="card-title">
+              <div><h3>포트 바인딩</h3><p>IP/NIC별로 TCP·UDP 포트를 여러 개 등록할 수 있어요. AUTO는 동적 포트로, 번호를 사전에 지정하지 않습니다.</p></div>
+              <span className="system-config-count">{bindings.length}개 바인딩</span>
+            </div>
+            <div className="table-wrap"><table className="system-config-table">
+              <thead><tr><th>노드 / NIC</th><th>IP</th><th>프로토콜</th><th>포트</th><th>용도</th><th>관리</th></tr></thead>
+              <tbody>{bindings.map(item => (
+                <tr key={item.id} className={editingPort === item.id ? 'selected' : ''}>
+                  <td>{item.node_name} / {item.interface_name || '기본'}</td>
+                  <td className="mono">{item.ip_address}</td><td>{item.protocol}</td>
+                  <td>{item.port_mode === 'AUTO' ? <strong>AUTO · 동적</strong> : item.port}</td>
+                  <td>{item.description || '—'}</td>
+                  <td><div className="system-config-row-actions">
+                    <button type="button" className="ghost" onClick={() => selectPortForEdit(item)}>수정</button>
+                    <button type="button" className="danger" onClick={() => deletePort(item)} aria-label={`${item.protocol} 포트 삭제`}><Trash2 size={14}/></button>
+                  </div></td>
+                </tr>
+              ))}
+              {!bindings.length && <tr><td colSpan={6}>등록된 포트 바인딩이 없습니다.</td></tr>}</tbody>
+            </table></div>
+          </section>
+          <section className="card">
+            <h3>{editingPort == null ? 'IP / PORT 바인딩 추가' : 'IP / PORT 바인딩 수정'}</h3>
+            <form className="system-config-form" onSubmit={savePort}>
+              <label>IP / NIC
+                <select required value={portDraft.ip_assignment_id} disabled={editingPort !== null} onChange={e => setPortDraft({ ...portDraft, ip_assignment_id: e.target.value })}>
+                  <option value="">IP 선택</option>
+                  {ips.map(item => <option key={item.id} value={item.id}>{item.node_name} · {item.interface_name || 'NIC'} · {item.ip_address}</option>)}
+                </select>
+              </label>
+              <label>프로토콜
+                <select value={portDraft.protocol} onChange={e => setPortDraft({ ...portDraft, protocol: e.target.value })}>
+                  <option value="TCP">TCP</option><option value="UDP">UDP</option>
+                </select>
+              </label>
+              <label>바인딩 방식
+                <select value={portDraft.port_mode} onChange={e => setPortDraft({ ...portDraft, port_mode: e.target.value, port: e.target.value === 'AUTO' ? '' : portDraft.port })}>
+                  <option value="FIXED">고정 포트</option><option value="AUTO">자동 (AUTO)</option>
+                </select>
+              </label>
+              <label>포트 번호
+                <input type="number" min={1} max={65535} required={portDraft.port_mode === 'FIXED'}
+                  disabled={portDraft.port_mode === 'AUTO'} value={portDraft.port}
+                  placeholder={portDraft.port_mode === 'AUTO' ? '자동 바인딩' : '예: 15010'}
+                  onChange={e => setPortDraft({ ...portDraft, port: e.target.value })}/>
+              </label>
+              <label className="wide">용도 / 비고
+                <input value={portDraft.description} maxLength={255} placeholder="예: 상태 정보 수신" onChange={e => setPortDraft({ ...portDraft, description: e.target.value })}/>
+              </label>
+              <div className="system-config-actions">
+                {editingPort !== null && <button type="button" className="ghost" onClick={clearPortForm}>수정 취소</button>}
+                <button type="submit" disabled={busy || !portDraft.ip_assignment_id || (portDraft.port_mode === 'FIXED' && !portDraft.port)}><Save size={15}/>{editingPort === null ? '바인딩 추가' : '바인딩 저장'}</button>
+              </div>
+            </form>
+          </section>
         </div>
       )}
 
       {loaded && tab === 'connections' && (
         <div className="system-config-stack">
-          <section className="card">
-            <h3>통신 연결 목록</h3>
-            <p>등록된 IP를 선택해 Server·Client 및 각 PORT를 관리합니다. 클라이언트 포트는 선택 사항입니다.</p>
+          <section className="card system-topology-card">
+            <div className="card-title">
+              <div><h3>통신 연결 관계도</h3><p>기존 인터페이스 설계처럼 노드·연결선을 선택해 아래 목록을 필터링합니다. 선은 같은 두 노드의 통신을 묶어 보여줍니다.</p></div>
+              <button type="button" className="ghost" onClick={showAllGraph}>전체 보기</button>
+            </div>
+            <SystemTopologyGraph
+              nodes={nodes} connections={connections}
+              selectedNodeIds={selectedGraphNodes} selectedPairKey={selectedPairKey}
+              onSelectNode={selectGraphNode} onSelectPair={selectGraphPair}
+              onShowAll={showAllGraph}
+              onEditNode={nodeId => onOpenNodeManager(nodeId)}
+              onOpenNodeManager={onOpenNodeManager}
+              protocolFilter={topologyFilter} onChangeProtocolFilter={setTopologyFilter}
+            />
+          </section>
+          <section className="card" id="system-connection-list">
+            <div className="card-title">
+              <div>
+                <h3>{selectedPairKey ? '선택한 연결선의 TCP / UDP 목록' : selectedGraphNodes.length ? '선택한 노드의 TCP / UDP 목록' : '전체 TCP / UDP 연결 목록'}</h3>
+                <p>{shownConnections.length}개 연결 · 관계도를 선택하면 해당 연결만 표시됩니다.</p>
+              </div>
+              {(selectedPairKey || selectedGraphNodes.length) && <button type="button" className="ghost" onClick={showAllGraph}>필터 해제</button>}
+            </div>
             <div className="table-wrap"><table className="system-config-table">
               <thead><tr><th>프로토콜</th><th>Server 노드</th><th>Server IP : PORT</th><th>Client 노드</th><th>Client IP : PORT</th><th>비고</th><th>관리</th></tr></thead>
-              <tbody>{connections.map(item => (
-                <tr key={item.id}>
-                  <td>{item.protocol}</td><td>{item.server_node_name}</td><td className="mono">{item.server_ip}:{item.server_port}</td>
-                  <td>{item.client_node_name}</td><td className="mono">{item.client_ip}{item.client_port == null ? '' : `:${item.client_port}`}</td><td>{item.note || '—'}</td>
-                  <td><div className="system-config-row-actions"><button type="button" className="ghost" onClick={() => selectConnectionForEdit(item)}>수정</button><button type="button" className="danger" onClick={() => deleteConnection(item)} aria-label={`${item.id} 연결 삭제`}><Trash2 size={14}/></button></div></td>
+              <tbody>{shownConnections.map(item => (
+                <tr key={item.id} className={editingConnection === item.id ? 'selected' : ''}>
+                  <td><strong>{item.protocol}</strong></td><td>{item.server_node_name}</td>
+                  <td className="mono">{item.server_ip} : {item.server_port_mode === 'AUTO' ? 'AUTO' : item.server_port}</td>
+                  <td>{item.client_node_name}</td>
+                  <td className="mono">{item.client_ip} : {item.client_port_mode === 'AUTO' ? 'AUTO' : item.client_port}</td>
+                  <td>{item.note || '—'}</td>
+                  <td><div className="system-config-row-actions">
+                    <button type="button" className="ghost" onClick={() => selectConnectionForEdit(item)}>수정</button>
+                    <button type="button" className="danger" onClick={() => deleteConnection(item)} aria-label={`${item.id} 연결 삭제`}><Trash2 size={14}/></button>
+                  </div></td>
                 </tr>
               ))}
-              {!connections.length && <tr><td colSpan={7}>등록된 통신 연결이 없습니다.</td></tr>}</tbody>
+              {!shownConnections.length && <tr><td colSpan={7}>해당 관계에 등록된 통신 연결이 없습니다. IP·NIC 탭에서 포트를 먼저 바인딩해 주세요.</td></tr>}</tbody>
             </table></div>
           </section>
           <section className="card">
-            <h3>{editingConnection == null ? '통신 연결 추가' : '통신 연결 수정'}</h3>
+            <div className="card-title">
+              <div><h3>{editingConnection == null ? '통신 연결 추가' : '통신 연결 수정'}</h3>
+                <p>IP·NIC에서 등록한 Server 바인딩과 같은 프로토콜의 Client 바인딩을 선택하세요. AUTO는 포트 번호를 사전에 지정하지 않습니다.</p>
+              </div>
+              <button type="button" className="ghost" onClick={() => setTab('ips')}>IP·PORT 설정</button>
+            </div>
             <form className="system-config-form" onSubmit={saveConnection}>
-              <label>Server IP<select required value={connectionDraft.server_ip_id} onChange={e => setConnectionDraft({ ...connectionDraft, server_ip_id: e.target.value })}>
-                <option value="">Server 선택</option>{ips.map(item => <option key={item.id} value={item.id}>{item.node_name} · {item.interface_name || 'IP'} · {item.ip_address}{item.is_reserved ? ' (예약)' : ''}</option>)}
-              </select></label>
-              <label>Server PORT<input required type="number" min={1} max={65535} value={connectionDraft.server_port} onChange={e => setConnectionDraft({ ...connectionDraft, server_port: e.target.value })}/></label>
-              <label>Client IP<select required value={connectionDraft.client_ip_id} onChange={e => setConnectionDraft({ ...connectionDraft, client_ip_id: e.target.value })}>
-                <option value="">Client 선택</option>{ips.map(item => <option key={item.id} value={item.id}>{item.node_name} · {item.interface_name || 'IP'} · {item.ip_address}{item.is_reserved ? ' (예약)' : ''}</option>)}
-              </select></label>
-              <label>Client PORT (선택)<input type="number" min={1} max={65535} value={connectionDraft.client_port} onChange={e => setConnectionDraft({ ...connectionDraft, client_port: e.target.value })}/></label>
-              <label>프로토콜<select value={connectionDraft.protocol} onChange={e => setConnectionDraft({ ...connectionDraft, protocol: e.target.value })}><option value="TCP">TCP</option><option value="UDP">UDP</option></select></label>
-              <label className="wide">비고<input value={connectionDraft.note} onChange={e => setConnectionDraft({ ...connectionDraft, note: e.target.value })}/></label>
+              <label>Server IP / PORT 바인딩
+                <select required value={connectionDraft.server_binding_id} onChange={e => setConnectionDraft({
+                  ...connectionDraft, server_binding_id: e.target.value, client_binding_id: '',
+                })}>
+                  <option value="">Server 바인딩 선택</option>
+                  {bindings.map(item => <option key={item.id} value={item.id}>
+                    {item.node_name} · {item.ip_address} : {item.port_mode === 'AUTO' ? 'AUTO' : item.port} ({item.protocol})
+                  </option>)}
+                </select>
+              </label>
+              <label>Client IP / PORT 바인딩
+                <select required value={connectionDraft.client_binding_id} onChange={e => setConnectionDraft({ ...connectionDraft, client_binding_id: e.target.value })}>
+                  <option value="">Client 바인딩 선택</option>
+                  {compatibleClientBindings.map(item => <option key={item.id} value={item.id}>
+                    {item.node_name} · {item.ip_address} : {item.port_mode === 'AUTO' ? 'AUTO' : item.port} ({item.protocol})
+                  </option>)}
+                </select>
+              </label>
+              <label>프로토콜
+                <input disabled value={chosenServerBinding?.protocol || 'Server 선택 시 자동 결정'} readOnly/>
+              </label>
+              <label className="wide">비고
+                <input value={connectionDraft.note} onChange={e => setConnectionDraft({ ...connectionDraft, note: e.target.value })}/>
+              </label>
               <div className="system-config-actions">
-                {editingConnection != null && <button type="button" className="ghost" onClick={() => { setEditingConnection(null); setConnectionDraft(EMPTY_CONNECTION); }}>수정 취소</button>}
-                <button type="submit" disabled={busy || !connectionDraft.server_ip_id || !connectionDraft.server_port || !connectionDraft.client_ip_id || connectionDraft.server_ip_id === connectionDraft.client_ip_id}><Save size={15}/> {editingConnection == null ? '연결 추가' : '변경 저장'}</button>
+                {editingConnection !== null && <button type="button" className="ghost" onClick={() => { setEditingConnection(null); setConnectionDraft(EMPTY_CONNECTION); }}>수정 취소</button>}
+                <button type="submit" disabled={busy || !connectionDraft.server_binding_id || !connectionDraft.client_binding_id || connectionDraft.server_binding_id === connectionDraft.client_binding_id}>
+                  <Save size={15}/>{editingConnection === null ? '연결 추가' : '변경 저장'}
+                </button>
               </div>
             </form>
+            {!bindings.length && <p className="system-config-inline-hint">포트 바인딩이 아직 없습니다. IP·NIC 탭에서 TCP/UDP 포트를 등록하거나 AUTO로 바인딩해 주세요.</p>}
           </section>
         </div>
       )}
