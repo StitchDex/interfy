@@ -401,12 +401,7 @@ export default function SystemConfigurationPanel({ api, projectId, integrationTa
         <div className="system-config-stack">
           <div className="system-config-split">
           <section className="card system-config-input">
-            <div className="card-title">
-              <div><h3>{editingConnection == null ? '통신 연결 추가' : '통신 연결 수정'}</h3>
-                <p>IP·NIC에서 등록한 Server 바인딩과 같은 프로토콜의 Client 바인딩을 선택하세요. AUTO는 포트 번호를 사전에 지정하지 않습니다.</p>
-              </div>
-              <button type="button" className="ghost" onClick={() => setTab('ips')}>IP·PORT 설정</button>
-            </div>
+            <h3>{editingConnection == null ? '통신 연결 추가' : '통신 연결 수정'}</h3>
             <form className="system-config-form system-config-form-compact" onSubmit={saveConnection}>
               <label>Server IP / PORT 바인딩
                 <select required value={connectionDraft.server_binding_id} onChange={e => setConnectionDraft({
