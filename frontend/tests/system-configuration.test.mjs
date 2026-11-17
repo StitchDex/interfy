@@ -65,7 +65,19 @@ test('left editors precede their right-hand tables for IP, port and connections'
     assert.ok(section.indexOf(editor) >= 0 && section.indexOf(editor) < section.indexOf(list),
       `${editor} editor must precede its list`);
   }
-  assert.equal((panel.match(/className="system-config-form system-config-form-compact"/g) || []).length, 3);
+  assert.equal((panel.match(/className="system-config-form system-config-form-compact"/g) || []).length, 4);
   assert.match(styles, /grid-template-columns: minmax\(265px, 310px\) minmax\(0, 1fr\)/);
   assert.match(styles, /\.system-config-table th, \.system-config-table td \{ padding: 7px 8px; font-size: 12px;/);
+});
+
+test('device and software node editor is on the left and uses a fixed title', () => {
+  const appStyles = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+  const nodeSection = panel.slice(panel.indexOf("{loaded && tab === 'nodes'"), panel.indexOf("{loaded && tab === 'ips'"));
+  assert.equal((nodeSection.match(/className="system-config-split"/g) || []).length, 1);
+  assert.ok(nodeSection.indexOf('노드 정보 편집') < nodeSection.indexOf('장비·SW 목록'), 'node editor must appear left of list');
+  assert.match(nodeSection, /선택 노드: <strong>\{node.name\}<\/strong>/);
+  assert.doesNotMatch(nodeSection, /\{node\.name\}\s*·\s*식별 정보 편집/);
+  assert.match(nodeSection, /className="system-config-form system-config-form-compact" onSubmit=\{saveNode\}/);
+  assert.match(nodeSection, /onClick=\{\(\) => setNodeId\(String\(item.node_id\)\)\}/);
+  assert.match(appStyles, /\.side-project-card h2 \{[^}]*font-size: 16px;/);
 });
