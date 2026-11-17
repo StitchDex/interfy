@@ -7,7 +7,7 @@
 .system-config-tabs button.active { color: #1d4ed8; border-color: #93c5fd; background: #eff6ff; }
 .system-config-stack { min-width: 0; display: grid; gap: 16px; }
 .system-config-stack .card { min-width: 0; }
-.system-config-split { display: grid; grid-template-columns: minmax(265px, 310px) minmax(0, 1fr); gap: 16px; align-items: start; min-width: 0; }
+.system-config-split { display: grid; grid-template-columns: minmax(400px, 465px) minmax(0, 1fr); gap: 16px; align-items: start; min-width: 0; }
 .system-config-split > .card { min-width: 0; }
 .system-config-input { align-self: start; }
 .system-config-node-choice { margin: 0 0 10px; color: #64748b; font-size: 12px; }
