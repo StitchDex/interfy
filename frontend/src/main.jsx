@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import './style.css';
 import SystemConfigurationPanel from './SystemConfigurationPanel.jsx';
+import UnifiedExportPanel from './UnifiedExportPanel.jsx';
 import { nextNodePairSelection, isRelationBetweenNodes, isMessageInRelations } from './nodePair.js';
 import {
   NODE_DIRECTION_ALL, NODE_DIRECTION_TX, NODE_DIRECTION_RX,
@@ -4573,193 +4574,14 @@ function HistoryDetail({ history }) {
 }
 
 function ExportPanel({ api, project, labels = [], integrationTargets = [], onOpenPartialUpdate }) {
-  const [partnerTargetIds, setPartnerTargetIds] = useState([]);
-  const [partnerBusy, setPartnerBusy] = useState(false);
-  const [partnerNotice, setPartnerNotice] = useState('');
-  const [selectedLabelId, setSelectedLabelId] = useState(labels[0]?.id ? String(labels[0].id) : '');
-  const [selectedTargetId, setSelectedTargetId] = useState(integrationTargets[0]?.id ? String(integrationTargets[0].id) : '');
-  const [targetDirection, setTargetDirection] = useState('tx');
-
-  useEffect(() => {
-    if (selectedLabelId && !labels.some(label => String(label.id) === String(selectedLabelId))) {
-      setSelectedLabelId(labels[0]?.id ? String(labels[0].id) : '');
-    }
-    if (!selectedLabelId && labels[0]?.id) {
-      setSelectedLabelId(String(labels[0].id));
-    }
-  }, [labels.map(label => label.id).join(','), selectedLabelId]);
-
-  useEffect(() => {
-    if (selectedTargetId && !integrationTargets.some(target => String(target.id) === String(selectedTargetId))) {
-      setSelectedTargetId(integrationTargets[0]?.id ? String(integrationTargets[0].id) : '');
-    }
-    if (!selectedTargetId && integrationTargets[0]?.id) {
-      setSelectedTargetId(String(integrationTargets[0].id));
-    }
-  }, [integrationTargets.map(target => target.id).join(','), selectedTargetId]);
-
-  async function downloadExport(path, filename) {
-    const separator = path.includes('?') ? '&' : '?';
-    const timezone = encodeURIComponent(getUserTimeZone());
-    const res = await fetch(`${API_BASE}${path}${separator}timezone=${timezone}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
-    if (!res.ok) {
-      const text = await res.text();
-      alert(`출력 실패: ${res.status}\n${text}`);
-      return;
-    }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }
-
-  async function downloadPartnerJson() {
-    if (!partnerTargetIds.length || partnerBusy) return;
-    setPartnerBusy(true);
-    setPartnerNotice('');
-    try {
-      const response = await fetch(`${API_BASE}/projects/${project.id}/collaboration/export`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({ target_ids: partnerTargetIds }),
-      });
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`HTTP ${response.status}: ${error}`);
-      }
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${project.acronym || project.name || 'interfy'}-partner-package.json`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-      setPartnerNotice(`선택한 ${partnerTargetIds.length}개 노드의 작업 패키지를 저장했습니다.`);
-    } catch (error) {
-      setPartnerNotice(`내보내기 실패: ${error?.message || error}`);
-    } finally {
-      setPartnerBusy(false);
-    }
-  }
-
-  const selectedLabel = labels.find(label => String(label.id) === String(selectedLabelId));
-  const selectedTarget = integrationTargets.find(target => String(target.id) === String(selectedTargetId));
-  const targetDirectionText = targetDirection === 'rx' ? '수신 노드' : targetDirection === 'all' ? '송수신 전체' : '송신 노드';
-  const targetFileSuffix = targetDirection === 'rx' ? 'RX' : targetDirection === 'all' ? 'ALL' : 'TX';
-
   return (
-    <section className="page-grid compact-stack-page">
-      <div className="card span-3">
-        <div className="card-title"><div><h2>출력</h2><p>프로젝트 전체, 태그, 노드 기준으로 .h/.idl/.cs를 출력합니다.</p></div></div>
-        <div className="export-actions">
-          <button onClick={() => downloadExport(`/projects/${project.id}/export/header`, `${project.acronym || project.name}.h`)}><Download size={16}/> 프로젝트 전체 .h</button>
-          <button onClick={() => downloadExport(`/projects/${project.id}/export/idl`, `${project.acronym || project.name}.idl`)}><Download size={16}/> 프로젝트 전체 .idl</button>
-          <button onClick={() => downloadExport(`/projects/${project.id}/export/csharp`, `${project.acronym || project.name}.cs`)}><Download size={16}/> 프로젝트 전체 .cs</button>
-          <button onClick={() => downloadExport(`/projects/${project.id}/project-json`, `${project.acronym || project.name}.json`)}><Download size={16}/> 프로젝트 JSON</button>
-        </div>
-      </div>
-
-      <div className="card span-3">
-        <div className="card-title">
-          <div>
-            <h2>인터페이스설계기술서(IDD) Word 출력</h2>
-            <p>IDD 3.1 연동 개념과 3.2 연동 상세설계 표를 Word(.docx) 또는 한글(.hwpx)로 출력합니다. 노드는 CSCI로 처리하고, 내부·외부 구분 없이 송수신 관계별로 작성합니다.</p>
-          </div>
-        </div>
-        <div className="export-actions">
-          <button type="button" onClick={() => downloadExport(
-            '/projects/' + project.id + '/export/idd-docx',
-            String(project.acronym || project.name || 'Interfy').replace(/[\\/:*?"<>|]/g, '_') + '_IDD.docx'
-          )}>
-            <Download size={16}/> IDD 3.1·3.2 Word (.docx)
-          </button>
-          <button type="button" onClick={() => downloadExport(
-            '/projects/' + project.id + '/export/idd-hwpx',
-            String(project.acronym || project.name || 'Interfy').replace(/[\\/:*?"<>|]/g, '_') + '_IDD.hwpx'
-          )}>
-            <Download size={16}/> IDD 3.1·3.2 한글 (.hwpx)
-          </button>
-        </div>
-        <p className="muted small">표 5·6(인터페이스 목록), 표 7(사용자 인터페이스), 표 8·11(데이터요소), 표 9·12(통신방법), 표 10(프로토콜) 내용을 작성하며, Interfy에 없는 값은 빈칸으로 남깁니다.</p>
-      </div>
-
-      <div className="card span-3">
-        <div className="card-title">
-          <div>
-            <h2>협력사 오프라인 작업 패키지</h2>
-            <p>담당 노드를 여러 개 선택해 관련 송수신 메시지와 참조 STRUCT/ENUM을 JSON으로 내보냅니다. 협력사는 HTML 편집기에서 수정하고 JSON을 회신합니다.</p>
-          </div>
-        </div>
-        <div className="partner-export-targets">
-          {integrationTargets.map(target => (
-            <label key={target.id} className="partner-export-target">
-              <input type="checkbox" checked={partnerTargetIds.includes(target.id)} onChange={event => {
-                const id = target.id;
-                setPartnerTargetIds(prev => event.target.checked ? [...prev, id] : prev.filter(value => value !== id));
-              }} />
-              <span>{target.name}</span>
-            </label>
-          ))}
-          {!integrationTargets.length && <p className="muted small">먼저 인터페이스 설계에서 노드를 등록하세요.</p>}
-        </div>
-        <div className="button-row partner-export-actions">
-          <button type="button" className="ghost" onClick={() => setPartnerTargetIds(integrationTargets.map(target => target.id))}>전체 선택</button>
-          <button type="button" className="ghost" onClick={() => setPartnerTargetIds([])}>선택 해제</button>
-          <button type="button" disabled={!partnerTargetIds.length || partnerBusy} onClick={downloadPartnerJson}>
-            <Download size={16}/> {partnerBusy ? '생성 중...' : `선택한 ${partnerTargetIds.length}개 노드 JSON 내보내기`}
-          </button>
-          <a className="partner-export-download" href="/Interfy-Partner-Editor.html" download="Interfy-Partner-Editor.html"><Download size={16}/> 오프라인 HTML 편집기</a>
-          <button type="button" className="ghost" onClick={onOpenPartialUpdate}><Upload size={16}/> 수정 JSON 부분 업데이트</button>
-        </div>
-        <p className="muted small">HTML은 모든 업체에 공통으로 전달하고 JSON만 선택한 노드 기준으로 나눠 주세요. 기존 부분 업데이트의 필드·프로토콜·송수신 반영 방식을 선택해 적용할 수 있습니다.</p>
-        {partnerNotice && <p className="partner-export-notice">{partnerNotice}</p>}
-      </div>
-
-      <div className="card span-3">
-        <div className="card-title"><div><h2>태그 출력</h2><p>태그에 속한 메시지와 참조 STRUCT/Enum을 .h/.idl/.cs 또는 오프라인 편집용 JSON으로 출력합니다.</p></div></div>
-        <div className="label-export-row">
-          <select value={selectedLabelId} onChange={e => setSelectedLabelId(e.target.value)}>
-            <option value="">태그 선택</option>
-            {labels.map(label => <option key={label.id} value={label.id}>{label.name}</option>)}
-          </select>
-          <button disabled={!selectedLabel} onClick={() => selectedLabel && downloadExport(`/labels/${selectedLabel.id}/export/header`, `${project.acronym || project.name}_${selectedLabel.name}.h`)}>태그 .h</button>
-          <button disabled={!selectedLabel} onClick={() => selectedLabel && downloadExport(`/labels/${selectedLabel.id}/export/idl`, `${project.acronym || project.name}_${selectedLabel.name}.idl`)}>태그 .idl</button>
-          <button disabled={!selectedLabel} onClick={() => selectedLabel && downloadExport(`/labels/${selectedLabel.id}/export/csharp`, `${project.acronym || project.name}_${selectedLabel.name}.cs`)}>태그 .cs</button>
-          <button disabled={!selectedLabel} onClick={() => selectedLabel && downloadExport(`/labels/${selectedLabel.id}/export/json`, `${String(project.acronym || project.name)}_${selectedLabel.name}.json`)}>태그 JSON</button>
-        </div>
-        <p className="muted small">태그 JSON은 선택한 태그의 메시지와 참조 자료형·연동 노드를 포함합니다. 위의 협력사 오프라인 HTML 편집기에서 열어 수정한 뒤 '수정 JSON 부분 업데이트'로 반영할 수 있습니다. 태그 이름·소속 자체의 변경은 부분 업데이트 대상이 아닙니다.</p>
-        {!labels.length && <p className="muted small">등록된 태그가 없습니다. 인터페이스 설계의 + 추가 버튼에서 태그를 추가하세요.</p>}
-      </div>
-
-      <div className="card span-3">
-        <div className="card-title"><div><h2>노드별 출력</h2><p>선택한 노드가 송신 노드 또는 수신 노드로 연결된 메시지를 .h/.idl/.cs로 바로 출력합니다. 참조되는 메시지/Enum은 함께 포함됩니다.</p></div></div>
-        <div className="target-export-row">
-          <select value={selectedTargetId} onChange={e => setSelectedTargetId(e.target.value)}>
-            <option value="">노드 선택</option>
-            {integrationTargets.map(target => <option key={target.id} value={target.id}>{target.name}</option>)}
-          </select>
-          <select value={targetDirection} onChange={e => setTargetDirection(e.target.value)} aria-label="노드 출력 기준">
-            <option value="tx">송신 노드 기준</option>
-            <option value="rx">수신 노드 기준</option>
-            <option value="all">송수신 전체</option>
-          </select>
-          <button disabled={!selectedTarget} onClick={() => selectedTarget && downloadExport(`/integration-targets/${selectedTarget.id}/export/header?direction=${targetDirection}`, `${project.acronym || project.name}_${selectedTarget.name}_${targetFileSuffix}.h`)}>{targetDirectionText} .h</button>
-          <button disabled={!selectedTarget} onClick={() => selectedTarget && downloadExport(`/integration-targets/${selectedTarget.id}/export/idl?direction=${targetDirection}`, `${project.acronym || project.name}_${selectedTarget.name}_${targetFileSuffix}.idl`)}>{targetDirectionText} .idl</button>
-          <button disabled={!selectedTarget} onClick={() => selectedTarget && downloadExport(`/integration-targets/${selectedTarget.id}/export/csharp?direction=${targetDirection}`, `${project.acronym || project.name}_${selectedTarget.name}_${targetFileSuffix}.cs`)}>{targetDirectionText} .cs</button>
-        </div>
-        {!integrationTargets.length && <p className="muted small">등록된 노드가 없습니다. 인터페이스 설계의 + 추가 버튼에서 노드를 추가하세요.</p>}
-      </div>
-    </section>
+    <UnifiedExportPanel
+      project={project}
+      labels={labels}
+      integrationTargets={integrationTargets}
+      apiBase={API_BASE}
+      onOpenPartialUpdate={onOpenPartialUpdate}
+    />
   );
 }
 
