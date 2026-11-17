@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from ..database import get_db
-from ..models import Project, User, Message, MessageField, MessageEnumValue, MessageGroup, MessageGroupItem, MessageLabel, MessageLabelItem, MessageTxLabelItem, MessageRxLabelItem, IntegrationTarget, MessageTxTargetItem, MessageRxTargetItem, MessageChangeHistory, ProjectBackup, ProjectBackupEvent, SystemNodeProfile, SystemIpAssignment, SystemTransportConnection
+from ..models import Project, User, Message, MessageField, MessageEnumValue, MessageGroup, MessageGroupItem, MessageLabel, MessageLabelItem, MessageTxLabelItem, MessageRxLabelItem, IntegrationTarget, MessageTxTargetItem, MessageRxTargetItem, MessageChangeHistory, ProjectBackup, ProjectBackupEvent, SystemNodeProfile, SystemIpAssignment, SystemPortBinding, SystemTransportConnection
 from ..schemas import ProjectCreate, ProjectRead, ProjectUpdate
 from ..auth import get_current_user, require_admin
 from .project_json import export_project_json as export_project_json_impl
@@ -157,6 +157,7 @@ def delete_project(project_id: int, db: Session = Depends(get_db), current_user:
 
         # Explicitly clear system configuration first (project deletion uses bulk SQL).
         db.query(SystemTransportConnection).filter(SystemTransportConnection.project_id == project_id).delete(synchronize_session=False)
+        db.query(SystemPortBinding).filter(SystemPortBinding.project_id == project_id).delete(synchronize_session=False)
         db.query(SystemIpAssignment).filter(SystemIpAssignment.project_id == project_id).delete(synchronize_session=False)
         db.query(SystemNodeProfile).filter(SystemNodeProfile.project_id == project_id).delete(synchronize_session=False)
         if target_ids:
