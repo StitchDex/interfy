@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Cable, Cpu, EthernetPort, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
 import './systemConfiguration.css';
+import SystemTopologyGraph, { pairKey } from './SystemTopologyGraph.jsx';
 
-const EMPTY_CONFIGURATION = { nodes: [], ip_assignments: [], connections: [] };
+const EMPTY_CONFIGURATION = { nodes: [], ip_assignments: [], port_bindings: [], connections: [] };
 const EMPTY_IP = { node_id: '', interface_name: '', ip_address: '', is_reserved: false, note: '' };
-const EMPTY_CONNECTION = { server_ip_id: '', server_port: '', client_ip_id: '', client_port: '', protocol: 'TCP', note: '' };
+const EMPTY_PORT = { ip_assignment_id: '', protocol: 'TCP', port_mode: 'FIXED', port: '', description: '' };
+const EMPTY_CONNECTION = { server_binding_id: '', client_binding_id: '', note: '' };
 
 function NodePicker({ nodes, value, onChange, label = '노드' }) {
   return (
@@ -17,7 +19,7 @@ function NodePicker({ nodes, value, onChange, label = '노드' }) {
   );
 }
 
-export default function SystemConfigurationPanel({ api, projectId, onGoToDesign }) {
+export default function SystemConfigurationPanel({ api, projectId, integrationTargets = [], onOpenNodeManager }) {
   const [tab, setTab] = useState('nodes');
   const [configuration, setConfiguration] = useState(EMPTY_CONFIGURATION);
   const [loaded, setLoaded] = useState(false);
@@ -27,13 +29,35 @@ export default function SystemConfigurationPanel({ api, projectId, onGoToDesign 
   const [profile, setProfile] = useState({});
   const [ipDraft, setIpDraft] = useState(EMPTY_IP);
   const [editingIp, setEditingIp] = useState(null);
+  const [portDraft, setPortDraft] = useState(EMPTY_PORT);
+  const [editingPort, setEditingPort] = useState(null);
   const [connectionDraft, setConnectionDraft] = useState(EMPTY_CONNECTION);
+  const [selectedGraphNodes, setSelectedGraphNodes] = useState([]);
+  const [selectedPairKey, setSelectedPairKey] = useState(null);
+  const [topologyFilter, setTopologyFilter] = useState('ALL');
   const [editingConnection, setEditingConnection] = useState(null);
 
   const base = `/projects/${projectId}/system-configuration`;
   const nodes = configuration.nodes;
   const ips = configuration.ip_assignments;
+  const bindings = configuration.port_bindings || [];
   const connections = configuration.connections;
+  const shownConnections = connections.filter(item => {
+    if (topologyFilter !== 'ALL' && item.protocol !== topologyFilter) return false;
+    if (selectedPairKey) return pairKey(item.server_node_id, item.client_node_id) === selectedPairKey;
+    if (selectedGraphNodes.length === 1) {
+      return item.server_node_id === selectedGraphNodes[0] || item.client_node_id === selectedGraphNodes[0];
+    }
+    if (selectedGraphNodes.length === 2) {
+      return selectedGraphNodes.includes(item.server_node_id) && selectedGraphNodes.includes(item.client_node_id);
+    }
+    return true;
+  });
+  const bindingById = new Map(bindings.map(item => [String(item.id), item]));
+  const chosenServerBinding = bindingById.get(String(connectionDraft.server_binding_id));
+  const compatibleClientBindings = chosenServerBinding
+    ? bindings.filter(binding => binding.protocol === chosenServerBinding.protocol)
+    : bindings;
   const node = useMemo(() => nodes.find(item => String(item.node_id) === String(nodeId)), [nodes, nodeId]);
 
   async function reload() {
@@ -49,11 +73,15 @@ export default function SystemConfigurationPanel({ api, projectId, onGoToDesign 
     setNodeId('');
     setIpDraft(EMPTY_IP);
     setEditingIp(null);
+    setPortDraft(EMPTY_PORT);
+    setEditingPort(null);
+    setSelectedGraphNodes([]);
+    setSelectedPairKey(null);
     setConnectionDraft(EMPTY_CONNECTION);
     setEditingConnection(null);
     setNotice('');
     reload().catch(error => setNotice(error.message));
-  }, [projectId]);
+  }, [projectId, integrationTargets]);
 
   useEffect(() => {
     setProfile({
@@ -119,14 +147,68 @@ export default function SystemConfigurationPanel({ api, projectId, onGoToDesign 
     }, 'IP 할당을 삭제했습니다.');
   }
 
+  function clearPortForm() {
+    setEditingPort(null);
+    setPortDraft({ ...EMPTY_PORT, ip_assignment_id: ips[0]?.id ? String(ips[0].id) : '' });
+  }
+
+  function selectPortForEdit(item) {
+    setEditingPort(item.id);
+    setPortDraft({
+      ip_assignment_id: String(item.ip_assignment_id), protocol: item.protocol,
+      port_mode: item.port_mode, port: item.port == null ? '' : String(item.port),
+      description: item.description || '',
+    });
+    setTab('ips');
+  }
+
+  async function savePort(event) {
+    event.preventDefault();
+    const editing = editingPort;
+    await execute(async () => {
+      const body = {
+        ip_assignment_id: Number(portDraft.ip_assignment_id),
+        protocol: portDraft.protocol, port_mode: portDraft.port_mode,
+        port: portDraft.port_mode === 'AUTO' ? null : Number(portDraft.port),
+        description: portDraft.description,
+      };
+      if (editing !== null) await api.patch(`${base}/ports/${editing}`, body);
+      else await api.post(`${base}/ports`, body);
+      clearPortForm();
+    }, editing !== null ? '포트 바인딩을 수정했습니다.' : '포트 바인딩을 등록했습니다.');
+  }
+
+  async function deletePort(item) {
+    if (!confirm(`${item.node_name} · ${item.protocol} ${item.port_mode === 'AUTO' ? 'AUTO' : item.port} 바인딩을 삭제할까요?`)) return;
+    await execute(async () => {
+      await api.del(`${base}/ports/${item.id}`);
+      if (editingPort === item.id) clearPortForm();
+    }, '포트 바인딩을 삭제했습니다.');
+  }
+
+  function selectGraphNode(id) {
+    setSelectedPairKey(null);
+    setSelectedGraphNodes(current => {
+      if (current.includes(id)) return current.filter(value => value !== id);
+      return current.length >= 2 ? [id] : [...current, id];
+    });
+  }
+
+  function selectGraphPair(key) {
+    setSelectedGraphNodes([]);
+    setSelectedPairKey(current => current === key ? null : key);
+  }
+
+  function showAllGraph() {
+    setSelectedGraphNodes([]);
+    setSelectedPairKey(null);
+  }
+
   function selectConnectionForEdit(item) {
     setEditingConnection(item.id);
     setConnectionDraft({
-      server_ip_id: String(item.server_ip_id),
-      server_port: String(item.server_port),
-      client_ip_id: String(item.client_ip_id),
-      client_port: item.client_port == null ? '' : String(item.client_port),
-      protocol: item.protocol,
+      server_binding_id: item.server_binding_id == null ? '' : String(item.server_binding_id),
+      client_binding_id: item.client_binding_id == null ? '' : String(item.client_binding_id),
       note: item.note || '',
     });
   }
@@ -136,10 +218,8 @@ export default function SystemConfigurationPanel({ api, projectId, onGoToDesign 
     await execute(async () => {
       const body = {
         ...connectionDraft,
-        server_ip_id: Number(connectionDraft.server_ip_id),
-        client_ip_id: Number(connectionDraft.client_ip_id),
-        server_port: Number(connectionDraft.server_port),
-        client_port: connectionDraft.client_port === '' ? null : Number(connectionDraft.client_port),
+        server_binding_id: Number(connectionDraft.server_binding_id),
+        client_binding_id: Number(connectionDraft.client_binding_id),
       };
       if (editingConnection !== null) await api.patch(`${base}/connections/${editingConnection}`, body);
       else await api.post(`${base}/connections`, body);
