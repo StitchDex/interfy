@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Cable, Cpu, EthernetPort, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
 import './systemConfiguration.css';
-import SystemTopologyGraph, { pairKey } from './SystemTopologyGraph.jsx';
+import SystemTopologyGraph from './SystemTopologyGraph.jsx';
+import { filterTransportConnections } from './systemTopologyData.js';
 
 const EMPTY_CONFIGURATION = { nodes: [], ip_assignments: [], port_bindings: [], connections: [] };
 const EMPTY_IP = { node_id: '', interface_name: '', ip_address: '', is_reserved: false, note: '' };
@@ -42,17 +43,9 @@ export default function SystemConfigurationPanel({ api, projectId, integrationTa
   const ips = configuration.ip_assignments;
   const bindings = configuration.port_bindings || [];
   const connections = configuration.connections;
-  const shownConnections = connections.filter(item => {
-    if (topologyFilter !== 'ALL' && item.protocol !== topologyFilter) return false;
-    if (selectedPairKey) return pairKey(item.server_node_id, item.client_node_id) === selectedPairKey;
-    if (selectedGraphNodes.length === 1) {
-      return item.server_node_id === selectedGraphNodes[0] || item.client_node_id === selectedGraphNodes[0];
-    }
-    if (selectedGraphNodes.length === 2) {
-      return selectedGraphNodes.includes(item.server_node_id) && selectedGraphNodes.includes(item.client_node_id);
-    }
-    return true;
-  });
+  const shownConnections = filterTransportConnections(
+    connections, selectedGraphNodes, selectedPairKey, topologyFilter,
+  );
   const bindingById = new Map(bindings.map(item => [String(item.id), item]));
   const chosenServerBinding = bindingById.get(String(connectionDraft.server_binding_id));
   const compatibleClientBindings = chosenServerBinding
