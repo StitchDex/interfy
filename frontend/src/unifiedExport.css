@@ -1,8 +1,6 @@
 /* Output screen: one scope selector and shared format selector, IDD separate. */
 .unified-export-page { min-width: 0; display: grid; gap: 18px; align-content: start; padding: 24px; }
-.unified-export-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
-.unified-export-heading h2 { font-size: 23px; margin: 0; }
-.unified-export-heading p { margin: 5px 0 0; color: #64748b; }
+.unified-export-heading { display: flex; justify-content: flex-end; align-items: center; gap: 8px; flex-wrap: wrap; }
 .unified-export-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .unified-export-tool { display: inline-flex; gap: 7px; align-items: center; padding: 7px 10px; text-decoration: none; border-radius: 9px; border: 1px solid #d7dfef; background: #fff; color: #334155; font-size: 12px; font-weight: 650; min-height: 33px; }
 button.unified-export-tool { background: #fff; color: #334155; font-size: 12px; }
