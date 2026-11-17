@@ -15,11 +15,12 @@ from ..auth import get_current_user
 from ..database import get_db
 from ..models import (
     IntegrationTarget, Project, SystemNodeProfile,
-    SystemIpAssignment, SystemTransportConnection, User,
+    SystemIpAssignment, SystemPortBinding, SystemTransportConnection, User,
 )
 from ..schemas import (
     SystemNodeProfileUpdate, SystemIpCreate, SystemIpUpdate,
     SystemConnectionCreate, SystemConnectionUpdate,
+    SystemPortBindingCreate, SystemPortBindingUpdate,
 )
 
 router = APIRouter(tags=["system-configuration"])
@@ -44,6 +45,26 @@ def _ip(db: Session, project_id: int, ip_id: int) -> SystemIpAssignment:
     if assignment is None or assignment.project_id != project_id:
         raise HTTPException(status_code=404, detail="현재 프로젝트의 IP 할당을 찾을 수 없습니다.")
     return assignment
+
+
+def _binding(db: Session, project_id: int, binding_id: int) -> SystemPortBinding:
+    binding = db.get(SystemPortBinding, binding_id)
+    if binding is None or binding.project_id != project_id:
+        raise HTTPException(status_code=422, detail="현재 프로젝트에 등록되지 않은 포트 바인딩입니다.")
+    return binding
+
+
+def _read_binding(row: SystemPortBinding, ips: dict[int, SystemIpAssignment], node_names: dict[int, str]) -> dict:
+    ip = ips.get(row.ip_assignment_id)
+    return {
+        "id": row.id, "ip_assignment_id": row.ip_assignment_id,
+        "ip_address": ip.ip_address if ip else "",
+        "interface_name": ip.interface_name if ip else "",
+        "node_id": ip.node_id if ip else None,
+        "node_name": node_names.get(ip.node_id, "") if ip else "",
+        "protocol": row.protocol, "port_mode": row.port_mode,
+        "port": row.port, "description": row.description,
+    }
 
 
 def _connection(db: Session, project_id: int, connection_id: int) -> SystemTransportConnection:
@@ -92,15 +113,64 @@ def _read_assignment(row: SystemIpAssignment, node_names: dict[int, str]) -> dic
 def _read_connection(row: SystemTransportConnection, ips: dict[int, SystemIpAssignment], nodes: dict[int, str]) -> dict:
     server = ips.get(row.server_ip_id)
     client = ips.get(row.client_ip_id)
+    server_binding = row.server_binding
+    client_binding = row.client_binding
     return {
-        "id": row.id, "server_ip_id": row.server_ip_id, "server_port": row.server_port,
-        "client_ip_id": row.client_ip_id, "client_port": row.client_port,
+        "id": row.id,
+        "server_ip_id": row.server_ip_id,
+        "client_ip_id": row.client_ip_id,
+        "server_binding_id": row.server_binding_id,
+        "client_binding_id": row.client_binding_id,
+        "server_port": None if server_binding and server_binding.port_mode == "AUTO" else row.server_port,
+        "client_port": None if client_binding and client_binding.port_mode == "AUTO" else row.client_port,
+        "server_port_mode": server_binding.port_mode if server_binding else ("AUTO" if row.server_port == 0 else "FIXED"),
+        "client_port_mode": client_binding.port_mode if client_binding else ("AUTO" if row.client_port is None else "FIXED"),
         "protocol": row.protocol, "note": row.note,
         "server_ip": server.ip_address if server else "",
         "client_ip": client.ip_address if client else "",
+        "server_node_id": server.node_id if server else None,
+        "client_node_id": client.node_id if client else None,
         "server_node_name": nodes.get(server.node_id, "") if server else "",
         "client_node_name": nodes.get(client.node_id, "") if client else "",
     }
+
+
+def _validate_binding_fields(db: Session, project_id: int, ip_id: int, protocol: str, mode: str, port: int | None, exclude: int | None = None) -> int | None:
+    _ip(db, project_id, ip_id)
+    if mode == "FIXED" and port is None:
+        raise HTTPException(status_code=422, detail="고정 포트에는 포트 번호가 필요합니다.")
+    if mode == "AUTO" and port is not None:
+        raise HTTPException(status_code=422, detail="AUTO 바인딩은 포트 번호를 지정하지 않습니다.")
+    query = db.query(SystemPortBinding).filter(
+        SystemPortBinding.project_id == project_id,
+        SystemPortBinding.ip_assignment_id == ip_id,
+        SystemPortBinding.protocol == protocol,
+        SystemPortBinding.port_mode == mode,
+        SystemPortBinding.port == port,
+    )
+    if exclude is not None:
+        query = query.filter(SystemPortBinding.id != exclude)
+    with db.no_autoflush:
+        if query.first():
+            raise HTTPException(status_code=409, detail="해당 IP에 동일한 프로토콜·포트 바인딩이 이미 존재합니다.")
+    return port
+
+
+def _apply_binding_to_connection(db: Session, project_id: int, row: SystemTransportConnection) -> None:
+    if row.server_binding_id is None or row.client_binding_id is None:
+        raise HTTPException(status_code=422, detail="Server와 Client 바인딩을 모두 선택해 주세요.")
+    server = _binding(db, project_id, row.server_binding_id)
+    client = _binding(db, project_id, row.client_binding_id)
+    if server.protocol != client.protocol:
+        raise HTTPException(status_code=422, detail="Server와 Client 바인딩의 TCP/UDP 프로토콜이 달라 연결할 수 없습니다.")
+    _check_endpoints(db, project_id, server.ip_assignment_id, client.ip_assignment_id)
+    row.server_ip_id = server.ip_assignment_id
+    row.client_ip_id = client.ip_assignment_id
+    row.protocol = server.protocol
+    # Existing feature-branch DBs keep server_port NOT NULL. The internal
+    # value 0 denotes dynamic AUTO, never a real listening port.
+    row.server_port = server.port if server.port_mode == "FIXED" else 0
+    row.client_port = client.port if client.port_mode == "FIXED" else None
 
 
 @router.get("/projects/{project_id}/system-configuration")
@@ -123,12 +193,16 @@ def read_system_configuration(
         SystemIpAssignment.project_id == project_id
     ).order_by(SystemIpAssignment.ip_address.asc()).all()
     ips = {ip.id: ip for ip in allocations}
+    bindings = db.query(SystemPortBinding).filter(
+        SystemPortBinding.project_id == project_id
+    ).order_by(SystemPortBinding.id.asc()).all()
     connections = db.query(SystemTransportConnection).filter(
         SystemTransportConnection.project_id == project_id
     ).order_by(SystemTransportConnection.id.asc()).all()
     return {
         "nodes": [_read_profile(node, profiles.get(node.id)) for node in nodes],
         "ip_assignments": [_read_assignment(row, node_names) for row in allocations],
+        "port_bindings": [_read_binding(row, ips, node_names) for row in bindings],
         "connections": [_read_connection(row, ips, node_names) for row in connections],
     }
 
