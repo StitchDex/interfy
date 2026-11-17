@@ -18,6 +18,7 @@ from ..models import (
     IntegrationTarget,
     SystemNodeProfile,
     SystemIpAssignment,
+    SystemPortBinding,
     SystemTransportConnection,
     MessageTxTargetItem,
     MessageRxTargetItem,
@@ -156,6 +157,9 @@ def _build_database_backup(db: Session, project_id: int) -> dict:
     system_ips = db.query(SystemIpAssignment).filter(
         SystemIpAssignment.project_id == project_id
     ).order_by(SystemIpAssignment.id.asc()).all()
+    system_ports = db.query(SystemPortBinding).filter(
+        SystemPortBinding.project_id == project_id
+    ).order_by(SystemPortBinding.id.asc()).all()
     system_connections = db.query(SystemTransportConnection).filter(
         SystemTransportConnection.project_id == project_id
     ).order_by(SystemTransportConnection.id.asc()).all()
@@ -327,12 +331,23 @@ def _build_database_backup(db: Session, project_id: int) -> dict:
             }
             for row in system_ips
         ],
+        "system_port_bindings": [
+            {
+                "id": row.id, "project_id": row.project_id,
+                "ip_assignment_id": row.ip_assignment_id, "protocol": row.protocol,
+                "port_mode": row.port_mode, "port": row.port,
+                "description": row.description,
+            }
+            for row in system_ports
+        ],
         "system_transport_connections": [
             {
                 "id": row.id, "project_id": row.project_id,
                 "server_ip_id": row.server_ip_id, "server_port": row.server_port,
                 "client_ip_id": row.client_ip_id, "client_port": row.client_port,
                 "protocol": row.protocol, "note": row.note,
+                "server_binding_id": row.server_binding_id,
+                "client_binding_id": row.client_binding_id,
             }
             for row in system_connections
         ],
@@ -551,6 +566,7 @@ def _restore_database_backup(db: Session, project: Project, backup_payload: dict
         db.query(MessageRxTargetItem).filter(MessageRxTargetItem.target_id.in_(target_ids)).delete(synchronize_session=False)
     # Clear dependent configuration in FK-safe order before restoring nodes.
     db.query(SystemTransportConnection).filter(SystemTransportConnection.project_id == project.id).delete(synchronize_session=False)
+    db.query(SystemPortBinding).filter(SystemPortBinding.project_id == project.id).delete(synchronize_session=False)
     db.query(SystemIpAssignment).filter(SystemIpAssignment.project_id == project.id).delete(synchronize_session=False)
     db.query(SystemNodeProfile).filter(SystemNodeProfile.project_id == project.id).delete(synchronize_session=False)
     db.query(MessageGroup).filter(MessageGroup.project_id == project.id).delete(synchronize_session=False)
@@ -774,6 +790,21 @@ def _restore_database_backup(db: Session, project: Project, backup_payload: dict
         ))
     db.flush()
 
+    restored_binding_ids: set[int] = set()
+    for row in payload.get("system_port_bindings") or []:
+        ip_id = int(row.get("ip_assignment_id"))
+        if ip_id not in restored_ip_ids:
+            continue
+        binding_id = int(row.get("id"))
+        restored_binding_ids.add(binding_id)
+        db.add(SystemPortBinding(
+            id=binding_id, project_id=project.id, ip_assignment_id=ip_id,
+            protocol=row.get("protocol") or "TCP",
+            port_mode=row.get("port_mode") or "FIXED",
+            port=row.get("port"), description=row.get("description") or "",
+        ))
+    db.flush()
+
     for row in payload.get("system_transport_connections") or []:
         server_ip_id = int(row.get("server_ip_id"))
         client_ip_id = int(row.get("client_ip_id"))
@@ -784,6 +815,8 @@ def _restore_database_backup(db: Session, project: Project, backup_payload: dict
             server_ip_id=server_ip_id, server_port=int(row.get("server_port")),
             client_ip_id=client_ip_id, client_port=row.get("client_port"),
             protocol=row.get("protocol") or "TCP", note=row.get("note") or "",
+            server_binding_id=int(row["server_binding_id"]) if row.get("server_binding_id") in restored_binding_ids else None,
+            client_binding_id=int(row["client_binding_id"]) if row.get("client_binding_id") in restored_binding_ids else None,
         ))
     db.flush()
 
@@ -849,7 +882,7 @@ def _restore_database_backup(db: Session, project: Project, backup_payload: dict
         ))
     db.flush()
 
-    for table in ("messages", "message_fields", "message_enum_values", "message_groups", "message_group_items", "message_labels", "message_label_items", "message_tx_label_items", "message_rx_label_items", "integration_targets", "system_node_profiles", "system_ip_assignments", "system_transport_connections", "message_tx_target_items", "message_rx_target_items", "message_change_histories"):
+    for table in ("messages", "message_fields", "message_enum_values", "message_groups", "message_group_items", "message_labels", "message_label_items", "message_tx_label_items", "message_rx_label_items", "integration_targets", "system_node_profiles", "system_ip_assignments", "system_port_bindings", "system_transport_connections", "message_tx_target_items", "message_rx_target_items", "message_change_histories"):
         _reset_sequence(db, table)
 
 
