@@ -47,9 +47,9 @@ function edgePath(relation, positions) {
   const ay = a.y + (side ? 0 : ny * 22);
   const bx = b.x - (side ? side * 49 : nx * 27);
   const by = b.y - (side ? 0 : ny * 22);
-  // Offset the center of opposite direction edges to avoid exact overlap.
-  const reverse = relation.fromId > relation.toId ? -1 : 1;
-  const bend = reverse * 17;
+  // A constant side offset relative to travel direction ensures A→B and
+  // B→A curve on opposite sides, instead of drawing over each other.
+  const bend = 18;
   const offX = -ny * bend, offY = nx * bend;
   return `M ${ax} ${ay} Q ${(ax+bx)/2+offX} ${(ay+by)/2+offY} ${bx} ${by}`;
 }
@@ -127,8 +127,10 @@ export default function SystemTopologyGraph({
                 const active = relation.key === selectedPairKey;
                 const centerFrom = positions.get(relation.fromId), centerTo = positions.get(relation.toId);
                 if (!path || !centerFrom || !centerTo) return null;
-                const mx = relation.fromId === relation.toId ? centerFrom.x : (centerFrom.x + centerTo.x) / 2;
-                const my = relation.fromId === relation.toId ? centerFrom.y - 76 : (centerFrom.y + centerTo.y) / 2 - 12;
+                const dx = centerTo.x - centerFrom.x, dy = centerTo.y - centerFrom.y;
+                const distance = Math.hypot(dx, dy) || 1;
+                const mx = relation.fromId === relation.toId ? centerFrom.x : (centerFrom.x + centerTo.x) / 2 - dy / distance * 21;
+                const my = relation.fromId === relation.toId ? centerFrom.y - 76 : (centerFrom.y + centerTo.y) / 2 + dx / distance * 21 - 12;
                 const label = (relation.protocols.length === 1 ? relation.protocols[0] : 'TCP/UDP') + ' · ' + relation.connections.length + '건';
                 const labelWidth = Math.max(76, label.length * 7 + 18);
                 return (
