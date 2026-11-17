@@ -33,16 +33,23 @@ test('device profile links to existing node identity, reserved IP and binding-ba
   assert.match(styles, /\.system-config-form/);
 });
 
-test('sidebar keeps output immediately below system configuration, before management pages', () => {
-  const sidebar = main.slice(
-    main.indexOf('<aside className="message-sidebar compact-sidebar">'),
-    main.indexOf('</aside>', main.indexOf('<aside className="message-sidebar compact-sidebar">')),
-  );
-  const items = ['인터페이스 설계</button>', '체계 구성</button>', '출력</button>', '프로젝트 설정</button>', '이력 관리</button>', '계정</button>'];
-  const positions = items.map(item => sidebar.indexOf(item));
-  assert.ok(positions.every(position => position >= 0), 'all sidebar items should exist');
-  assert.ok(positions.every((position, i) => i === 0 || position > positions[i - 1]), 'sidebar order should match design, output, management');
-  assert.ok(!sidebar.includes('>산출</div>'));
+test('sidebar follows the requested project, design, output and footer order', () => {
+  const appStyles = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+  const sidebarStart = main.indexOf('<aside className="message-sidebar compact-sidebar">');
+  const sidebar = main.slice(sidebarStart, main.indexOf('</aside>', sidebarStart));
+  const upper = sidebar.slice(sidebar.indexOf('<div className="sidebar-main">'), sidebar.indexOf('<div className="sidebar-footer">'));
+  const footer = sidebar.slice(sidebar.indexOf('<div className="sidebar-footer">'));
+  const upperItems = [
+    '프로젝트 선택으로', '현재 프로젝트', '{project.name}', '프로젝트 설정</button>',
+    '메시지 이름 / 용도 검색', '인터페이스 설계</button>', '체계 구성</button>', '출력</button>',
+  ];
+  const positions = upperItems.map(item => upper.indexOf(item));
+  assert.ok(positions.every(position => position >= 0), 'all requested upper items must be present');
+  assert.ok(positions.every((position, i) => i === 0 || position > positions[i - 1]), 'upper sidebar order must match the specification');
+  assert.ok(!upper.includes('이력 관리</button>') && !upper.includes('계정</button>'), 'management controls belong in the footer');
+  assert.ok(footer.indexOf('이력 관리</button>') >= 0 && footer.indexOf('계정</button>') > footer.indexOf('이력 관리</button>'));
+  assert.ok(!sidebar.includes('>설계</div>') && !sidebar.includes('>관리</div>'), 'unrequested section headings should be absent');
+  assert.match(appStyles, /\.compact-sidebar \.sidebar-footer \{[\s\S]*?margin-top: auto;/);
 });
 
 test('left editors precede their right-hand tables for IP, port and connections', () => {
