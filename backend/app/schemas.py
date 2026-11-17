@@ -597,3 +597,65 @@ class BackupEventRead(BaseModel):
     created_by_name: Optional[str] = None
     created_at: datetime
     model_config = {"from_attributes": True}
+
+
+# System configuration (kept separate from message/interface definition models).
+class SystemNodeProfileUpdate(BaseModel):
+    device_id: Optional[int] = Field(default=None, ge=1)
+    hardware_name: str = Field(default="", max_length=120)
+    hostname: str = Field(default="", max_length=120)
+    software_id: str = Field(default="", max_length=120)
+    hardware_id: str = Field(default="", max_length=120)
+    note: str = ""
+
+
+class SystemIpCreate(BaseModel):
+    node_id: int
+    interface_name: str = Field(default="", max_length=120)
+    ip_address: str = Field(min_length=1, max_length=45)
+    is_reserved: bool = False
+    note: str = ""
+
+
+class SystemIpUpdate(BaseModel):
+    node_id: Optional[int] = None
+    interface_name: Optional[str] = Field(default=None, max_length=120)
+    ip_address: Optional[str] = Field(default=None, min_length=1, max_length=45)
+    is_reserved: Optional[bool] = None
+    note: Optional[str] = None
+
+
+class SystemConnectionCreate(BaseModel):
+    server_ip_id: int
+    server_port: int = Field(ge=1, le=65535)
+    client_ip_id: int
+    client_port: Optional[int] = Field(default=None, ge=1, le=65535)
+    protocol: str = "TCP"
+    note: str = ""
+
+    @field_validator("protocol")
+    @classmethod
+    def validate_protocol(cls, value: str) -> str:
+        value = str(value or "").strip().upper()
+        if value not in {"TCP", "UDP"}:
+            raise ValueError("통신 프로토콜은 TCP 또는 UDP만 가능합니다.")
+        return value
+
+
+class SystemConnectionUpdate(BaseModel):
+    server_ip_id: Optional[int] = None
+    server_port: Optional[int] = Field(default=None, ge=1, le=65535)
+    client_ip_id: Optional[int] = None
+    client_port: Optional[int] = Field(default=None, ge=1, le=65535)
+    protocol: Optional[str] = None
+    note: Optional[str] = None
+
+    @field_validator("protocol")
+    @classmethod
+    def validate_protocol(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        value = str(value).strip().upper()
+        if value not in {"TCP", "UDP"}:
+            raise ValueError("통신 프로토콜은 TCP 또는 UDP만 가능합니다.")
+        return value
