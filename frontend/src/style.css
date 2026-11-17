@@ -970,10 +970,6 @@ body { background: #f4f7fb; }
    ================================================== */
 .compact-navigation { grid-template-columns: 230px minmax(0, 1fr); }
 .compact-sidebar { padding: 14px 12px; }
-/* Keep the three primary work areas directly below the back button,
-   above the taller project summary and message search controls. */
-.sidebar-primary-nav { display: grid; gap: 4px; flex: 0 0 auto; }
-.sidebar-primary-nav .message-tree-title { margin: 0 0 2px; }
 .sidebar-section-spacer { margin-top: 14px; }
 .manager-content.design-mode {
   height: 100vh;
