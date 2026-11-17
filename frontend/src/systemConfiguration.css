@@ -36,6 +36,9 @@
 
 /* Shared graph layout mirrors Interface Design's node pane and SVG graph. */
 .system-topology-card { display: grid; gap: 10px; }
+.system-topology-card > .card-title { margin-bottom: 0; flex-wrap: wrap; }
+.system-topology-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.system-topology-loading { display: grid; place-items: center; min-height: 220px; color: #64748b; font-size: 13px; }
 .system-topology-view {
   display: grid;
   grid-template-columns: 190px minmax(0, 1fr);
