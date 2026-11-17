@@ -716,8 +716,6 @@ function MessageManagementPage({ api, me, projectId, onBackToProjects, onLogout,
         <div className="message-tree-title">설계</div>
         <button className={activePanel === 'design' || activePanel === 'partialUpdate' ? 'side-nav active' : 'side-nav'} onClick={() => changePanel('design')}><Layers size={16}/> 인터페이스 설계</button>
         <button className={activePanel === 'systemConfiguration' ? 'side-nav active' : 'side-nav'} onClick={() => changePanel('systemConfiguration')}><Settings size={16}/> 체계 구성</button>
-
-        <div className="message-tree-title sidebar-section-spacer">산출</div>
         <button className={activePanel === 'groups' ? 'side-nav active' : 'side-nav'} onClick={() => changePanel('groups')}><Download size={16}/> 출력</button>
 
         <div className="message-tree-title sidebar-section-spacer">관리</div>
