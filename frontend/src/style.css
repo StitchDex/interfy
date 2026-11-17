@@ -66,7 +66,7 @@ pre { margin: 0; white-space: pre-wrap; font-size: 12px; max-width: 360px; }
 .message-sidebar > * { flex: 0 0 auto; }
 .back-button { width: 100%; justify-content: flex-start; background: #111c33; color: #dbeafe; border: 1px solid #24324c; padding: 7px 10px; min-height: 36px; }
 .side-project-card { background: #111c33; border: 1px solid #24324c; border-radius: 18px; padding: 12px; }
-.side-project-card h2 { margin: 3px 0; font-size: 18px; color: white; }
+.side-project-card h2 { margin: 3px 0; font-size: 16px; color: white; }
 .side-project-card p { margin: 0; color: #94a3b8; font-size: 13px; }
 .side-nav { width: 100%; justify-content: flex-start; background: transparent; color: #cbd5e1; border: 1px solid transparent; padding: 7px 10px; min-height: 34px; }
 .side-nav.active, .message-node.active { background: #1e3a8a; color: white; }
