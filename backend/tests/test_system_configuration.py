@@ -76,7 +76,7 @@ class SystemConfigurationTests(unittest.TestCase):
         self.node1.name = "체계관리#1"
         self.db.commit()
         self.assertEqual(
-            read_system_configuration(self.project.id, db=self.db, current_user=self.user)["nodes"][0]["name"],
+            next(row["name"] for row in read_system_configuration(self.project.id, db=self.db, current_user=self.user)["nodes"] if row["node_id"] == self.node1.id),
             "체계관리#1",
         )
 
