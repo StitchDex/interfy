@@ -109,7 +109,8 @@ def selected_node_messages(
                 MessageRxTargetItem.target_id.in_(ids)
             ).all()
         )
-    return project, messages_with_dependencies(db, project_id, list(selected_message_ids))
+    definitions = messages_with_dependencies(db, project_id, list(selected_message_ids))
+    return project, sorted(definitions, key=lambda item: (item.order_index or 0, item.id or 0))
 
 
 @router.post("/projects/{project_id}/export/nodes/{output_format}")
