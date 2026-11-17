@@ -7,24 +7,36 @@
 .system-config-tabs button.active { color: #1d4ed8; border-color: #93c5fd; background: #eff6ff; }
 .system-config-stack { min-width: 0; display: grid; gap: 16px; }
 .system-config-stack .card { min-width: 0; }
+.system-config-split { display: grid; grid-template-columns: minmax(265px, 310px) minmax(0, 1fr); gap: 16px; align-items: start; min-width: 0; }
+.system-config-split > .card { min-width: 0; }
+.system-config-input { align-self: start; }
+.system-config-list .table-wrap { max-width: 100%; overflow-x: auto; }
 .system-config-stack h3 { margin-bottom: 12px; }
 .system-config-stack .card-title { align-items: center; }
-.system-config-table { min-width: 750px; }
+.system-config-table { min-width: 700px; }
+#system-connection-list .system-config-table { min-width: 880px; }
 .system-config-table tr.selected td { background: #eff6ff; }
-.system-config-table th, .system-config-table td { padding: 10px 12px; }
+.system-config-table th, .system-config-table td { padding: 7px 8px; font-size: 12px; line-height: 1.35; }
 .system-config-table td { overflow-wrap: anywhere; }
-.system-config-table .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; font-size: 13px; }
+.system-config-table .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; font-size: 12px; }
 .system-config-form { display: grid; grid-template-columns: repeat(3, minmax(160px, 1fr)); gap: 12px; align-items: end; margin-top: 12px; }
 .system-config-form > label { min-width: 0; }
+.system-config-form.system-config-form-compact { grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 12px; }
+.system-config-form-compact > label { grid-column: 1 / -1; }
+.system-config-form-compact input, .system-config-form-compact select { min-width: 0; width: 100%; }
 .system-config-form .wide { grid-column: 1 / -1; }
 .system-config-form .system-config-check { display: flex; align-items: center; gap: 8px; min-height: 36px; }
 .system-config-form .system-config-check input { width: auto; }
 .system-config-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
 .system-config-row-actions { display: flex; gap: 6px; align-items: center; }
-.system-config-row-actions button { padding: 6px 9px; }
+.system-config-row-actions button { padding: 4px 6px; font-size: 12px; min-height: 26px; }
 :root[data-theme="dark"] .system-config-tabs button { background: #252526; color: #cccccc; border-color: #3e3e42; }
 :root[data-theme="dark"] .system-config-tabs button.active { background: #133355; color: #d4e9ff; border-color: #285f8c; }
 :root[data-theme="dark"] .system-config-table tr.selected td { background: #163047; }
+/* Stack on narrow desktop/tablet widths; keep the form left on full-size desktops. */
+@media (max-width: 1150px) {
+  .system-config-split { grid-template-columns: minmax(0, 1fr); }
+}
 @media (max-width: 900px) {
   .system-config-page { padding: 14px; }
   .system-config-intro { flex-wrap: wrap; }
