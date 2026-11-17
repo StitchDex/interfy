@@ -102,7 +102,6 @@ export default function SystemTopologyGraph({
       </aside>
       <div className="design-canvas-pane system-topology-canvas">
         <div className="design-toolbar system-topology-toolbar">
-          <strong>통신 연결 관계도</strong>
           <div className="design-filter-field">
             <span>프로토콜</span>
             <select aria-label="관계도 프로토콜 필터" value={protocolFilter} onChange={event => onChangeProtocolFilter(event.target.value)}>
