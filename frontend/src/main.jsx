@@ -4715,7 +4715,7 @@ function ExportPanel({ api, project, labels = [], integrationTargets = [], onOpe
       </div>
 
       <div className="card span-3">
-        <div className="card-title"><div><h2>태그 출력</h2><p>선택한 태그에 속한 메시지를 .h/.idl/.cs로 바로 출력합니다. 참조되는 메시지/Enum은 함께 포함됩니다.</p></div></div>
+        <div className="card-title"><div><h2>태그 출력</h2><p>태그에 속한 메시지와 참조 STRUCT/Enum을 .h/.idl/.cs 또는 오프라인 편집용 JSON으로 출력합니다.</p></div></div>
         <div className="label-export-row">
           <select value={selectedLabelId} onChange={e => setSelectedLabelId(e.target.value)}>
             <option value="">태그 선택</option>
@@ -4724,7 +4724,9 @@ function ExportPanel({ api, project, labels = [], integrationTargets = [], onOpe
           <button disabled={!selectedLabel} onClick={() => selectedLabel && downloadExport(`/labels/${selectedLabel.id}/export/header`, `${project.acronym || project.name}_${selectedLabel.name}.h`)}>태그 .h</button>
           <button disabled={!selectedLabel} onClick={() => selectedLabel && downloadExport(`/labels/${selectedLabel.id}/export/idl`, `${project.acronym || project.name}_${selectedLabel.name}.idl`)}>태그 .idl</button>
           <button disabled={!selectedLabel} onClick={() => selectedLabel && downloadExport(`/labels/${selectedLabel.id}/export/csharp`, `${project.acronym || project.name}_${selectedLabel.name}.cs`)}>태그 .cs</button>
+          <button disabled={!selectedLabel} onClick={() => selectedLabel && downloadExport(`/labels/${selectedLabel.id}/export/json`, `${String(project.acronym || project.name)}_${selectedLabel.name}.json`)}>태그 JSON</button>
         </div>
+        <p className="muted small">태그 JSON은 선택한 태그의 메시지와 참조 자료형·연동 노드를 포함합니다. 위의 협력사 오프라인 HTML 편집기에서 열어 수정한 뒤 '수정 JSON 부분 업데이트'로 반영할 수 있습니다. 태그 이름·소속 자체의 변경은 부분 업데이트 대상이 아닙니다.</p>
         {!labels.length && <p className="muted small">등록된 태그가 없습니다. 인터페이스 설계의 + 추가 버튼에서 태그를 추가하세요.</p>}
       </div>
 
