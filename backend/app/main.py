@@ -59,6 +59,12 @@ def apply_lightweight_migrations():
         _add_column_if_missing(conn, "message_fields", "value_range", "value_range TEXT")
         _add_column_if_missing(conn, "message_fields", "unit", "unit VARCHAR(120)")
         _add_column_if_missing(conn, "message_fields", "note", "note TEXT")
+        # Existing feature-branch databases may already contain the transport
+        # connections table; retain them while adding optional port binding FKs.
+        _add_column_if_missing(conn, "system_transport_connections", "server_binding_id",
+                               "server_binding_id INTEGER NULL REFERENCES system_port_bindings(id)")
+        _add_column_if_missing(conn, "system_transport_connections", "client_binding_id",
+                               "client_binding_id INTEGER NULL REFERENCES system_port_bindings(id)")
         _add_column_if_missing(conn, "users", "is_deleted", "is_deleted BOOLEAN DEFAULT FALSE NOT NULL")
         _add_column_if_missing(conn, "users", "display_name", "display_name VARCHAR(255)")
         # Preserve audit/backup attribution before a user account is permanently removed.
