@@ -706,17 +706,19 @@ function MessageManagementPage({ api, me, projectId, onBackToProjects, onLogout,
     <div className="manager-page compact-navigation">
       <aside className="message-sidebar compact-sidebar">
         <button className="back-button" onClick={guardedBackToProjects}><ArrowLeft size={16}/> 프로젝트 선택으로</button>
+        <nav className="sidebar-primary-nav" aria-label="설계 및 출력 메뉴">
+          <div className="message-tree-title">설계 · 산출</div>
+          <button className={activePanel === 'design' || activePanel === 'partialUpdate' ? 'side-nav active' : 'side-nav'} onClick={() => changePanel('design')}><Layers size={16}/> 인터페이스 설계</button>
+          <button className={activePanel === 'systemConfiguration' ? 'side-nav active' : 'side-nav'} onClick={() => changePanel('systemConfiguration')}><Settings size={16}/> 체계 구성</button>
+          <button className={activePanel === 'groups' ? 'side-nav active' : 'side-nav'} onClick={() => changePanel('groups')}><Download size={16}/> 출력</button>
+        </nav>
+
         <div className="side-project-card">
           <p className="eyebrow">현재 프로젝트 · {project.acronym || 'NO_CODE'}</p>
           <h2>{project.name}</h2>
           <p>{project.description || '설명이 없습니다.'}</p>
         </div>
         <div className="search-box"><Search size={16}/><input placeholder="메시지 이름 / 용도 검색" value={query} onChange={e => setQuery(e.target.value)} /></div>
-
-        <div className="message-tree-title">설계 · 산출</div>
-        <button className={activePanel === 'design' || activePanel === 'partialUpdate' ? 'side-nav active' : 'side-nav'} onClick={() => changePanel('design')}><Layers size={16}/> 인터페이스 설계</button>
-        <button className={activePanel === 'systemConfiguration' ? 'side-nav active' : 'side-nav'} onClick={() => changePanel('systemConfiguration')}><Settings size={16}/> 체계 구성</button>
-        <button className={activePanel === 'groups' ? 'side-nav active' : 'side-nav'} onClick={() => changePanel('groups')}><Download size={16}/> 출력</button>
 
         <div className="message-tree-title sidebar-section-spacer">관리</div>
         <button className={activePanel === 'settings' ? 'side-nav active' : 'side-nav'} onClick={() => changePanel('settings')}><Settings size={16}/> 프로젝트 설정</button>
