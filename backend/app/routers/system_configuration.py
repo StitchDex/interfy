@@ -363,9 +363,23 @@ def add_connection(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     _project(db, project_id)
-    _check_endpoints(db, project_id, payload.server_ip_id, payload.client_ip_id)
-    row = SystemTransportConnection(project_id=project_id, **payload.model_dump())
-    # Nullable client ports allow ephemeral clients, so check duplicates explicitly.
+    data = payload.model_dump()
+    row = SystemTransportConnection(project_id=project_id)
+    row.note = data["note"]
+    if data["server_binding_id"] is not None or data["client_binding_id"] is not None:
+        row.server_binding_id = data["server_binding_id"]
+        row.client_binding_id = data["client_binding_id"]
+        _apply_binding_to_connection(db, project_id, row)
+    else:
+        if data["server_ip_id"] is None or data["client_ip_id"] is None or data["server_port"] is None:
+            raise HTTPException(status_code=422, detail="Server/Client 포트 바인딩을 선택하거나 IP와 Server 포트를 입력하세요.")
+        _check_endpoints(db, project_id, data["server_ip_id"], data["client_ip_id"])
+        row.server_ip_id = data["server_ip_id"]
+        row.server_port = data["server_port"]
+        row.client_ip_id = data["client_ip_id"]
+        row.client_port = data["client_port"]
+        row.protocol = data["protocol"]
+    # A dynamic endpoint remains unassigned until the network stack binds it.
     if _duplicate_connection(db, project_id, row):
         raise HTTPException(status_code=409, detail="동일한 통신 연결이 이미 있습니다.")
     db.add(row)
@@ -398,9 +412,12 @@ def update_connection(
     changes = payload.model_dump(exclude_unset=True)
     for field, value in changes.items():
         setattr(row, field, value)
-    if row.server_port is None:
-        raise HTTPException(status_code=422, detail="서버 포트는 필수입니다.")
-    _check_endpoints(db, project_id, row.server_ip_id, row.client_ip_id)
+    if row.server_binding_id is not None or row.client_binding_id is not None:
+        _apply_binding_to_connection(db, project_id, row)
+    else:
+        if row.server_port is None or row.server_ip_id is None or row.client_ip_id is None:
+            raise HTTPException(status_code=422, detail="Server/Client 포트 설정이 필요합니다.")
+        _check_endpoints(db, project_id, row.server_ip_id, row.client_ip_id)
     if _duplicate_connection(db, project_id, row, excluding_id=row.id):
         raise HTTPException(status_code=409, detail="동일한 통신 연결이 이미 있습니다.")
     _commit(db, "동일한 통신 연결이 이미 있습니다.")
