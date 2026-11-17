@@ -167,10 +167,6 @@ export default function UnifiedExportPanel({
   return (
     <section className="unified-export-page">
       <header className="unified-export-heading">
-        <div>
-          <h2>출력</h2>
-          <p>출력 범위와 형식을 한 번만 지정하여 필요한 파일을 생성합니다.</p>
-        </div>
         <div className="unified-export-tools">
           <a href="/Interfy-Partner-Editor.html" download="Interfy-Partner-Editor.html" className="unified-export-tool">
             <FileCode2 size={15}/> 오프라인 HTML 편집기
