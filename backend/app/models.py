@@ -179,6 +179,9 @@ class IntegrationTarget(Base):
     project = relationship("Project", back_populates="integration_targets")
     tx_items = relationship("MessageTxTargetItem", back_populates="target", cascade="all, delete-orphan")
     rx_items = relationship("MessageRxTargetItem", back_populates="target", cascade="all, delete-orphan")
+    system_profile = relationship("SystemNodeProfile", back_populates="node", uselist=False, cascade="all, delete-orphan")
+    system_ip_assignments = relationship("SystemIpAssignment", back_populates="node", cascade="all, delete-orphan")
+
 
 class MessageTxTargetItem(Base):
     __tablename__ = "message_tx_target_items"
@@ -329,3 +332,53 @@ class ProjectBackupEvent(Base):
     backup = relationship("ProjectBackup", foreign_keys=[backup_id])
     auto_backup = relationship("ProjectBackup", foreign_keys=[auto_backup_id])
     user = relationship("User", foreign_keys=[created_by])
+
+
+class SystemNodeProfile(Base):
+    """Optional system-configuration metadata for an existing Interfy node."""
+    __tablename__ = "system_node_profiles"
+    __table_args__ = (UniqueConstraint("project_id", "device_id", name="uq_system_device_id"),)
+    id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    node_id = Column(Integer, ForeignKey("integration_targets.id", ondelete="CASCADE"), nullable=False, unique=True)
+    device_id = Column(Integer, nullable=True)
+    hardware_name = Column(String(120), default="", nullable=False)
+    hostname = Column(String(120), default="", nullable=False)
+    software_id = Column(String(120), default="", nullable=False)
+    hardware_id = Column(String(120), default="", nullable=False)
+    note = Column(Text, default="", nullable=False)
+    node = relationship("IntegrationTarget", back_populates="system_profile")
+
+
+class SystemIpAssignment(Base):
+    """An IP belongs to an existing node; reserved addresses are not new nodes."""
+    __tablename__ = "system_ip_assignments"
+    __table_args__ = (UniqueConstraint("project_id", "ip_address", name="uq_system_project_ip"),)
+    id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    node_id = Column(Integer, ForeignKey("integration_targets.id", ondelete="CASCADE"), nullable=False)
+    interface_name = Column(String(120), default="", nullable=False)
+    ip_address = Column(String(45), nullable=False)
+    is_reserved = Column(Boolean, default=False, nullable=False)
+    note = Column(Text, default="", nullable=False)
+    node = relationship("IntegrationTarget", back_populates="system_ip_assignments")
+    server_connections = relationship("SystemTransportConnection", foreign_keys="SystemTransportConnection.server_ip_id", back_populates="server_ip", cascade="all, delete-orphan")
+    client_connections = relationship("SystemTransportConnection", foreign_keys="SystemTransportConnection.client_ip_id", back_populates="client_ip", cascade="all, delete-orphan")
+
+
+class SystemTransportConnection(Base):
+    """A server/client endpoint pair referencing IP assignments by ID."""
+    __tablename__ = "system_transport_connections"
+    __table_args__ = (
+        UniqueConstraint("project_id", "server_ip_id", "server_port", "client_ip_id", "client_port", "protocol", name="uq_system_connection"),
+    )
+    id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    server_ip_id = Column(Integer, ForeignKey("system_ip_assignments.id", ondelete="CASCADE"), nullable=False)
+    server_port = Column(Integer, nullable=False)
+    client_ip_id = Column(Integer, ForeignKey("system_ip_assignments.id", ondelete="CASCADE"), nullable=False)
+    client_port = Column(Integer, nullable=True)
+    protocol = Column(String(8), default="TCP", nullable=False)
+    note = Column(Text, default="", nullable=False)
+    server_ip = relationship("SystemIpAssignment", foreign_keys=[server_ip_id], back_populates="server_connections")
+    client_ip = relationship("SystemIpAssignment", foreign_keys=[client_ip_id], back_populates="client_connections")
