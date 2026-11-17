@@ -1,27 +1,9 @@
 import React, { useMemo } from 'react';
 import { Layers, Network, Plus } from 'lucide-react';
+import { groupTransportLinks } from './systemTopologyData.js';
+export { pairKey, groupTransportLinks } from './systemTopologyData.js';
 
 /** Node/edge rendering intentionally reuses the existing Interface Design graph CSS. */
-export function pairKey(serverNodeId, clientNodeId) {
-  return String(serverNodeId) + '->' + String(clientNodeId);
-}
-
-export function groupTransportLinks(connections = []) {
-  const grouped = new Map();
-  for (const item of connections) {
-    if (item.server_node_id == null || item.client_node_id == null) continue;
-    const key = pairKey(item.server_node_id, item.client_node_id);
-    if (!grouped.has(key)) grouped.set(key, {
-      key, fromId: item.server_node_id, toId: item.client_node_id,
-      connections: [], protocols: new Set(),
-    });
-    const relation = grouped.get(key);
-    relation.connections.push(item);
-    relation.protocols.add(item.protocol);
-  }
-  return [...grouped.values()].map(row => ({ ...row, protocols: [...row.protocols] }));
-}
-
 function compactName(value, limit = 15) {
   const text = String(value || '');
   return text.length > limit ? text.slice(0, limit - 1) + '…' : text;
