@@ -264,7 +264,27 @@ export default function SystemConfigurationPanel({ api, projectId, integrationTa
 
       {loaded && tab === 'nodes' && (
         <div className="system-config-stack">
-          <section className="card">
+          <div className="system-config-split">
+            <section className="card system-config-input">
+              <h3>노드 정보 편집</h3>
+              {node ? (
+                <>
+                  <p className="system-config-node-choice">선택 노드: <strong>{node.name}</strong></p>
+                  <form className="system-config-form system-config-form-compact" onSubmit={saveNode}>
+              <label>Device ID<input type="number" min="1" placeholder="예: 7" value={profile.device_id ?? ''} onChange={e => setProfile({ ...profile, device_id: e.target.value })}/></label>
+              <label>탑재 HW<input value={profile.hardware_name || ''} maxLength={120} placeholder="예: 체계관리기" onChange={e => setProfile({ ...profile, hardware_name: e.target.value })}/></label>
+              <label>Hostname<input value={profile.hostname || ''} maxLength={120} placeholder="장치 이름" onChange={e => setProfile({ ...profile, hostname: e.target.value })}/></label>
+              <label>SW 고유 ID<input value={profile.software_id || ''} maxLength={120} onChange={e => setProfile({ ...profile, software_id: e.target.value })}/></label>
+              <label>HW 고유 ID<input value={profile.hardware_id || ''} maxLength={120} onChange={e => setProfile({ ...profile, hardware_id: e.target.value })}/></label>
+              <label className="wide">비고<textarea value={profile.note || ''} onChange={e => setProfile({ ...profile, note: e.target.value })}/></label>
+              <div className="system-config-actions"><button disabled={busy} type="submit"><Save size={15}/> 저장</button></div>
+            </form>
+                </>
+              ) : (
+                <p className="system-config-node-choice">오른쪽 목록에서 편집할 노드를 선택하세요.</p>
+              )}
+            </section>
+            <section className="card system-config-list">
             <div className="card-title">
               <div><h3>장비·SW 목록</h3><p>기존 인터페이스 노드를 재사용하므로 노드 이름을 변경해도 설정이 유지됩니다.</p></div>
               <button className="ghost" type="button" onClick={() => onOpenNodeManager()}><Plus size={15}/> 노드 추가·관리</button>
@@ -279,18 +299,7 @@ export default function SystemConfigurationPanel({ api, projectId, integrationTa
               {!nodes.length && <tr><td colSpan={5}>노드가 없습니다. 인터페이스 설계에서 먼저 노드를 추가해 주세요.</td></tr>}</tbody>
             </table></div>
           </section>
-          {node && <section className="card">
-            <h3>{node.name} · 식별 정보 편집</h3>
-            <form className="system-config-form" onSubmit={saveNode}>
-              <label>Device ID<input type="number" min="1" placeholder="예: 7" value={profile.device_id ?? ''} onChange={e => setProfile({ ...profile, device_id: e.target.value })}/></label>
-              <label>탑재 HW<input value={profile.hardware_name || ''} maxLength={120} placeholder="예: 체계관리기" onChange={e => setProfile({ ...profile, hardware_name: e.target.value })}/></label>
-              <label>Hostname<input value={profile.hostname || ''} maxLength={120} placeholder="장치 이름" onChange={e => setProfile({ ...profile, hostname: e.target.value })}/></label>
-              <label>SW 고유 ID<input value={profile.software_id || ''} maxLength={120} onChange={e => setProfile({ ...profile, software_id: e.target.value })}/></label>
-              <label>HW 고유 ID<input value={profile.hardware_id || ''} maxLength={120} onChange={e => setProfile({ ...profile, hardware_id: e.target.value })}/></label>
-              <label className="wide">비고<textarea value={profile.note || ''} onChange={e => setProfile({ ...profile, note: e.target.value })}/></label>
-              <div className="system-config-actions"><button disabled={busy} type="submit"><Save size={15}/> 저장</button></div>
-            </form>
-          </section>}
+          </div>
         </div>
       )}
 
