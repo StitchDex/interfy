@@ -66,7 +66,7 @@ test('left editors precede their right-hand tables for IP, port and connections'
       `${editor} editor must precede its list`);
   }
   assert.equal((panel.match(/className="system-config-form system-config-form-compact"/g) || []).length, 4);
-  assert.match(styles, /grid-template-columns: minmax\(265px, 310px\) minmax\(0, 1fr\)/);
+  assert.match(styles, /grid-template-columns: minmax\(400px, 465px\) minmax\(0, 1fr\)/);
   assert.match(styles, /\.system-config-table th, \.system-config-table td \{ padding: 7px 8px; font-size: 12px;/);
 });
 
