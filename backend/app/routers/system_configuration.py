@@ -266,6 +266,11 @@ def delete_ip_assignment(
     current_user: User = Depends(get_current_user),
 ):
     row = _ip(db, project_id, ip_id)
+    if db.query(SystemPortBinding).filter(
+        SystemPortBinding.project_id == project_id,
+        SystemPortBinding.ip_assignment_id == ip_id,
+    ).first():
+        raise HTTPException(status_code=409, detail="이 IP에 포트 바인딩이 등록되어 있습니다. 포트 바인딩부터 삭제해 주세요.")
     if db.query(SystemTransportConnection).filter(
         SystemTransportConnection.project_id == project_id,
         or_(SystemTransportConnection.server_ip_id == ip_id,
@@ -274,6 +279,74 @@ def delete_ip_assignment(
         raise HTTPException(status_code=409, detail="통신 연결에서 사용 중인 IP입니다. 연결부터 삭제해 주세요.")
     db.delete(row)
     db.commit()
+    return {"ok": True}
+
+
+
+@router.post("/projects/{project_id}/system-configuration/ports")
+def add_port_binding(
+    project_id: int, payload: SystemPortBindingCreate,
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
+):
+    _project(db, project_id)
+    _validate_binding_fields(db, project_id, payload.ip_assignment_id, payload.protocol, payload.port_mode, payload.port)
+    row = SystemPortBinding(project_id=project_id, **payload.model_dump())
+    db.add(row)
+    _commit(db, "포트 바인딩을 등록하지 못했습니다.")
+    ip = _ip(db, project_id, row.ip_assignment_id)
+    return _read_binding(row, {ip.id: ip}, {ip.node_id: _node(db, project_id, ip.node_id).name})
+
+
+@router.patch("/projects/{project_id}/system-configuration/ports/{binding_id}")
+def update_port_binding(
+    project_id: int, binding_id: int, payload: SystemPortBindingUpdate,
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
+):
+    row = _binding(db, project_id, binding_id)
+    changes = payload.model_dump(exclude_unset=True)
+    protocol = changes.get("protocol", row.protocol)
+    mode = changes.get("port_mode", row.port_mode)
+    port = changes.get("port", row.port)
+    if mode == "AUTO" and "port" not in changes:
+        port = None
+    # Require an explicit port when switching AUTO -> FIXED.
+    _validate_binding_fields(db, project_id, row.ip_assignment_id, protocol, mode, port, exclude=binding_id)
+    row.protocol = protocol
+    row.port_mode = mode
+    row.port = port
+    if "description" in changes:
+        row.description = changes["description"] or ""
+    # Updating a binding updates its existing connections' effective endpoint.
+    links = db.query(SystemTransportConnection).filter(
+        SystemTransportConnection.project_id == project_id,
+        or_(SystemTransportConnection.server_binding_id == binding_id,
+            SystemTransportConnection.client_binding_id == binding_id),
+    ).all()
+    for link in links:
+        _apply_binding_to_connection(db, project_id, link)
+        if _duplicate_connection(db, project_id, link, excluding_id=link.id):
+            db.rollback()
+            raise HTTPException(status_code=409, detail="변경한 포트로 인해 통신 연결이 중복됩니다.")
+    _commit(db, "포트 변경 중 통신 연결이 중복되었습니다.")
+    ip = _ip(db, project_id, row.ip_assignment_id)
+    return _read_binding(row, {ip.id: ip}, {ip.node_id: _node(db, project_id, ip.node_id).name})
+
+
+@router.delete("/projects/{project_id}/system-configuration/ports/{binding_id}")
+def delete_port_binding(
+    project_id: int, binding_id: int, db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    row = _binding(db, project_id, binding_id)
+    in_use = db.query(SystemTransportConnection).filter(
+        SystemTransportConnection.project_id == project_id,
+        or_(SystemTransportConnection.server_binding_id == binding_id,
+            SystemTransportConnection.client_binding_id == binding_id),
+    ).first()
+    if in_use:
+        raise HTTPException(status_code=409, detail="통신 연결에서 사용 중인 바인딩입니다. 연결부터 삭제해 주세요.")
+    db.delete(row)
+    _commit(db, "포트 바인딩을 삭제할 수 없습니다.")
     return {"ok": True}
 
 
