@@ -23,6 +23,7 @@ import {
   UserCircle,
 } from 'lucide-react';
 import './style.css';
+import SystemConfigurationPanel from './SystemConfigurationPanel.jsx';
 import { nextNodePairSelection, isRelationBetweenNodes, isMessageInRelations } from './nodePair.js';
 import {
   NODE_DIRECTION_ALL, NODE_DIRECTION_TX, NODE_DIRECTION_RX,
@@ -274,6 +275,7 @@ function createApi(token, setError) {
     post: (path, body) => request(path, { method: 'POST', body: JSON.stringify(body) }),
     postForm: (path, formData) => request(path, { method: 'POST', body: formData }),
     patch: (path, body) => request(path, { method: 'PATCH', body: JSON.stringify(body) }),
+    put: (path, body) => request(path, { method: 'PUT', body: JSON.stringify(body) }),
     del: (path) => request(path, { method: 'DELETE' }),
     login: async (email, password) => {
       const body = new URLSearchParams();
@@ -711,6 +713,7 @@ function MessageManagementPage({ api, me, projectId, onBackToProjects, onLogout,
 
         <div className="message-tree-title">설계</div>
         <button className={activePanel === 'design' || activePanel === 'partialUpdate' ? 'side-nav active' : 'side-nav'} onClick={() => changePanel('design')}><Layers size={16}/> 인터페이스 설계</button>
+        <button className={activePanel === 'systemConfiguration' ? 'side-nav active' : 'side-nav'} onClick={() => changePanel('systemConfiguration')}><Settings size={16}/> 체계 구성</button>
 
         <div className="message-tree-title sidebar-section-spacer">산출</div>
         <button className={activePanel === 'groups' ? 'side-nav active' : 'side-nav'} onClick={() => changePanel('groups')}><Download size={16}/> 출력</button>
@@ -772,6 +775,13 @@ function MessageManagementPage({ api, me, projectId, onBackToProjects, onLogout,
             onApplied={async () => {
               await Promise.all([loadMessages(false), loadLabels(), loadIntegrationTargets(), loadHistory()]);
             }}
+          />
+        )}
+        {activePanel === 'systemConfiguration' && (
+          <SystemConfigurationPanel
+            api={api}
+            projectId={projectId}
+            onGoToDesign={() => changePanel('design')}
           />
         )}
         {activePanel === 'settings' && (
@@ -1922,6 +1932,7 @@ function DesignVisualizationTop({ integrationTargets, visibleTargets = integrati
 function getPanelTitle(activePanel) {
   const titles = {
     design: '인터페이스 설계',
+    systemConfiguration: '체계 구성',
     messages: '인터페이스 설계',
     partialUpdate: '부분 업데이트',
     settings: '프로젝트 설정',
