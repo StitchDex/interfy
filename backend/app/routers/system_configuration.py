@@ -237,7 +237,9 @@ def _duplicate_connection(db: Session, project_id: int, row: SystemTransportConn
     )
     if excluding_id is not None:
         query = query.filter(SystemTransportConnection.id != excluding_id)
-    return query.first() is not None
+    # Pending edits must not flush before the duplicate check can report a 409.
+    with db.no_autoflush:
+        return query.first() is not None
 
 
 @router.patch("/projects/{project_id}/system-configuration/connections/{connection_id}")
