@@ -331,13 +331,31 @@ td .array-size-label { margin: 0; }
 .group-row-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .group-row-header h3 { margin: 0; }
 .group-row-header p { margin: 4px 0; }
-.label-export-row { display: grid; grid-template-columns: minmax(220px, 1fr) auto auto auto; gap: 8px; align-items: center; }
-.target-export-row { display: grid; grid-template-columns: minmax(220px, 1fr) 160px auto auto auto; gap: 8px; align-items: center; }
+/* Keep tag/target exports compact and on one row when space permits.
+   The previous tag grid only defined three button tracks, so the JSON button
+   landed in an implicit full-width column. */
+.label-export-row,
+.target-export-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.label-export-row > select,
+.target-export-row > select:first-child {
+  flex: 0 1 240px;
+  width: 240px;
+  min-width: 160px;
+  max-width: 100%;
+}
+.target-export-row > select:nth-child(2) {
+  flex: 0 1 160px;
+  width: 160px;
+  min-width: 140px;
+  max-width: 100%;
+}
+.label-export-row > button,
+.target-export-row > button { flex: 0 0 auto; width: auto; }
 .group-message-table th:first-child, .group-message-table td:first-child { width: 86px; min-width: 86px; white-space: nowrap; }
 .group-message-table th:last-child, .group-message-table td:last-child { width: 86px; text-align: center; }
 
 @media (max-width: 1180px) {
-  .label-create, .label-export-row, .target-export-row { grid-template-columns: 1fr; }
+  .label-create { grid-template-columns: 1fr; }
   .group-row-header { flex-direction: column; }
 }
 
