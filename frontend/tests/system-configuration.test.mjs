@@ -81,3 +81,13 @@ test('device and software node editor is on the left and uses a fixed title', ()
   assert.match(nodeSection, /onClick=\{\(\) => setNodeId\(String\(item.node_id\)\)\}/);
   assert.match(appStyles, /\.side-project-card h2 \{[^}]*font-size: 16px;/);
 });
+
+test('communication connection editor has only necessary controls', () => {
+  const section = panel.slice(panel.indexOf("{loaded && tab === 'connections'"));
+  assert.match(section, /통신 연결 추가/);
+  assert.match(section, /Server IP \/ PORT 바인딩/);
+  assert.match(section, /Client IP \/ PORT 바인딩/);
+  assert.doesNotMatch(section, /IP·PORT 설정<\/button>/);
+  assert.doesNotMatch(section, /AUTO는 포트 번호를 사전에 지정하지 않습니다/);
+  assert.match(section, /포트 바인딩이 아직 없습니다/);
+});
