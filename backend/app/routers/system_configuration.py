@@ -1,0 +1,269 @@
+"""Project-scoped system configuration using existing Interfy integration nodes.
+
+A node is registered once in integration_targets. Extra device identification,
+IP allocations and transport connections reference that identity, so renaming a
+node in Interface Design never breaks the system configuration.
+"""
+import ipaddress
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from ..auth import get_current_user
+from ..database import get_db
+from ..models import (
+    IntegrationTarget, Project, SystemNodeProfile,
+    SystemIpAssignment, SystemTransportConnection, User,
+)
+from ..schemas import (
+    SystemNodeProfileUpdate, SystemIpCreate, SystemIpUpdate,
+    SystemConnectionCreate, SystemConnectionUpdate,
+)
+
+router = APIRouter(tags=["system-configuration"])
+
+
+def _project(db: Session, project_id: int) -> Project:
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="프로젝트를 찾을 수 없습니다.")
+    return project
+
+
+def _node(db: Session, project_id: int, node_id: int) -> IntegrationTarget:
+    node = db.get(IntegrationTarget, node_id)
+    if node is None or node.project_id != project_id:
+        raise HTTPException(status_code=422, detail="현재 프로젝트에 없는 노드입니다.")
+    return node
+
+
+def _ip(db: Session, project_id: int, ip_id: int) -> SystemIpAssignment:
+    assignment = db.get(SystemIpAssignment, ip_id)
+    if assignment is None or assignment.project_id != project_id:
+        raise HTTPException(status_code=404, detail="현재 프로젝트의 IP 할당을 찾을 수 없습니다.")
+    return assignment
+
+
+def _connection(db: Session, project_id: int, connection_id: int) -> SystemTransportConnection:
+    row = db.get(SystemTransportConnection, connection_id)
+    if row is None or row.project_id != project_id:
+        raise HTTPException(status_code=404, detail="현재 프로젝트의 통신 연결을 찾을 수 없습니다.")
+    return row
+
+
+def _normalized_ip(value: str) -> str:
+    try:
+        return str(ipaddress.ip_address(str(value).strip()))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="올바른 IPv4 또는 IPv6 주소를 입력하세요.") from exc
+
+
+def _commit(db: Session, conflict: str):
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=conflict) from exc
+
+
+def _read_profile(node: IntegrationTarget, profile: SystemNodeProfile | None) -> dict:
+    return {
+        "node_id": node.id, "name": node.name, "description": node.description or "",
+        "device_id": profile.device_id if profile else None,
+        "hardware_name": profile.hardware_name if profile else "",
+        "hostname": profile.hostname if profile else "",
+        "software_id": profile.software_id if profile else "",
+        "hardware_id": profile.hardware_id if profile else "",
+        "note": profile.note if profile else "",
+    }
+
+
+def _read_assignment(row: SystemIpAssignment, node_names: dict[int, str]) -> dict:
+    return {
+        "id": row.id, "node_id": row.node_id,
+        "node_name": node_names.get(row.node_id, ""),
+        "interface_name": row.interface_name, "ip_address": row.ip_address,
+        "is_reserved": row.is_reserved, "note": row.note,
+    }
+
+
+def _read_connection(row: SystemTransportConnection, ips: dict[int, SystemIpAssignment], nodes: dict[int, str]) -> dict:
+    server = ips.get(row.server_ip_id)
+    client = ips.get(row.client_ip_id)
+    return {
+        "id": row.id, "server_ip_id": row.server_ip_id, "server_port": row.server_port,
+        "client_ip_id": row.client_ip_id, "client_port": row.client_port,
+        "protocol": row.protocol, "note": row.note,
+        "server_ip": server.ip_address if server else "",
+        "client_ip": client.ip_address if client else "",
+        "server_node_name": nodes.get(server.node_id, "") if server else "",
+        "client_node_name": nodes.get(client.node_id, "") if client else "",
+    }
+
+
+@router.get("/projects/{project_id}/system-configuration")
+def read_system_configuration(
+    project_id: int, db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _project(db, project_id)
+    nodes = db.query(IntegrationTarget).filter(
+        IntegrationTarget.project_id == project_id
+    ).order_by(IntegrationTarget.name.asc(), IntegrationTarget.id.asc()).all()
+    node_names = {node.id: node.name for node in nodes}
+    profiles = {
+        profile.node_id: profile
+        for profile in db.query(SystemNodeProfile).filter(
+            SystemNodeProfile.project_id == project_id
+        ).all()
+    }
+    allocations = db.query(SystemIpAssignment).filter(
+        SystemIpAssignment.project_id == project_id
+    ).order_by(SystemIpAssignment.ip_address.asc()).all()
+    ips = {ip.id: ip for ip in allocations}
+    connections = db.query(SystemTransportConnection).filter(
+        SystemTransportConnection.project_id == project_id
+    ).order_by(SystemTransportConnection.id.asc()).all()
+    return {
+        "nodes": [_read_profile(node, profiles.get(node.id)) for node in nodes],
+        "ip_assignments": [_read_assignment(row, node_names) for row in allocations],
+        "connections": [_read_connection(row, ips, node_names) for row in connections],
+    }
+
+
+@router.put("/projects/{project_id}/system-configuration/nodes/{node_id}")
+def upsert_node_profile(
+    project_id: int, node_id: int, payload: SystemNodeProfileUpdate,
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
+):
+    node = _node(db, project_id, node_id)
+    profile = db.query(SystemNodeProfile).filter(
+        SystemNodeProfile.node_id == node_id
+    ).first()
+    if profile is None:
+        profile = SystemNodeProfile(node_id=node_id, project_id=project_id)
+        db.add(profile)
+    for field, value in payload.model_dump().items():
+        setattr(profile, field, value.strip() if isinstance(value, str) else value)
+    _commit(db, "이 프로젝트에 같은 장비 ID가 이미 등록되어 있습니다.")
+    return _read_profile(node, profile)
+
+
+@router.post("/projects/{project_id}/system-configuration/ips")
+def add_ip_assignment(
+    project_id: int, payload: SystemIpCreate,
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
+):
+    _project(db, project_id)
+    _node(db, project_id, payload.node_id)
+    row = SystemIpAssignment(
+        project_id=project_id, node_id=payload.node_id,
+        interface_name=payload.interface_name.strip(),
+        ip_address=_normalized_ip(payload.ip_address),
+        is_reserved=payload.is_reserved, note=payload.note.strip(),
+    )
+    db.add(row)
+    _commit(db, "현재 프로젝트에 동일한 IP 주소가 이미 등록되어 있습니다.")
+    return _read_assignment(row, {payload.node_id: _node(db, project_id, payload.node_id).name})
+
+
+@router.patch("/projects/{project_id}/system-configuration/ips/{ip_id}")
+def update_ip_assignment(
+    project_id: int, ip_id: int, payload: SystemIpUpdate,
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
+):
+    row = _ip(db, project_id, ip_id)
+    changes = payload.model_dump(exclude_unset=True)
+    if "node_id" in changes:
+        _node(db, project_id, changes["node_id"])
+    if "ip_address" in changes:
+        changes["ip_address"] = _normalized_ip(changes["ip_address"])
+    for field, value in changes.items():
+        setattr(row, field, value.strip() if isinstance(value, str) else value)
+    _commit(db, "현재 프로젝트에 동일한 IP 주소가 이미 등록되어 있습니다.")
+    return _read_assignment(row, {row.node_id: _node(db, project_id, row.node_id).name})
+
+
+@router.delete("/projects/{project_id}/system-configuration/ips/{ip_id}")
+def delete_ip_assignment(
+    project_id: int, ip_id: int, db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    row = _ip(db, project_id, ip_id)
+    if db.query(SystemTransportConnection).filter(
+        SystemTransportConnection.project_id == project_id,
+        or_(SystemTransportConnection.server_ip_id == ip_id,
+            SystemTransportConnection.client_ip_id == ip_id),
+    ).first():
+        raise HTTPException(status_code=409, detail="통신 연결에서 사용 중인 IP입니다. 연결부터 삭제해 주세요.")
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
+
+
+def _check_endpoints(db: Session, project_id: int, server_ip_id: int, client_ip_id: int) -> None:
+    _ip(db, project_id, server_ip_id)
+    _ip(db, project_id, client_ip_id)
+    if server_ip_id == client_ip_id:
+        raise HTTPException(status_code=422, detail="서버와 클라이언트에는 서로 다른 IP를 선택하세요.")
+
+
+@router.post("/projects/{project_id}/system-configuration/connections")
+def add_connection(
+    project_id: int, payload: SystemConnectionCreate,
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
+):
+    _project(db, project_id)
+    _check_endpoints(db, project_id, payload.server_ip_id, payload.client_ip_id)
+    row = SystemTransportConnection(project_id=project_id, **payload.model_dump())
+    # Nullable client ports allow ephemeral clients, so check duplicates explicitly.
+    if _duplicate_connection(db, project_id, row):
+        raise HTTPException(status_code=409, detail="동일한 통신 연결이 이미 있습니다.")
+    db.add(row)
+    _commit(db, "동일한 통신 연결이 이미 있습니다.")
+    return {"id": row.id}
+
+
+def _duplicate_connection(db: Session, project_id: int, row: SystemTransportConnection, excluding_id: int | None = None) -> bool:
+    query = db.query(SystemTransportConnection).filter(
+        SystemTransportConnection.project_id == project_id,
+        SystemTransportConnection.server_ip_id == row.server_ip_id,
+        SystemTransportConnection.client_ip_id == row.client_ip_id,
+        SystemTransportConnection.server_port == row.server_port,
+        SystemTransportConnection.client_port == row.client_port,
+        SystemTransportConnection.protocol == row.protocol,
+    )
+    if excluding_id is not None:
+        query = query.filter(SystemTransportConnection.id != excluding_id)
+    return query.first() is not None
+
+
+@router.patch("/projects/{project_id}/system-configuration/connections/{connection_id}")
+def update_connection(
+    project_id: int, connection_id: int, payload: SystemConnectionUpdate,
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
+):
+    row = _connection(db, project_id, connection_id)
+    changes = payload.model_dump(exclude_unset=True)
+    for field, value in changes.items():
+        setattr(row, field, value)
+    if row.server_port is None:
+        raise HTTPException(status_code=422, detail="서버 포트는 필수입니다.")
+    _check_endpoints(db, project_id, row.server_ip_id, row.client_ip_id)
+    if _duplicate_connection(db, project_id, row, excluding_id=row.id):
+        raise HTTPException(status_code=409, detail="동일한 통신 연결이 이미 있습니다.")
+    _commit(db, "동일한 통신 연결이 이미 있습니다.")
+    return {"id": row.id}
+
+
+@router.delete("/projects/{project_id}/system-configuration/connections/{connection_id}")
+def delete_connection(
+    project_id: int, connection_id: int, db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    row = _connection(db, project_id, connection_id)
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
