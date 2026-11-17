@@ -370,6 +370,11 @@ class SystemIpAssignment(Base):
 class SystemPortBinding(Base):
     """TCP/UDP port configuration for a single IP/NIC, fixed or dynamic."""
     __tablename__ = "system_port_bindings"
+    # Database uniqueness for fixed ports; AUTO (NULL) is also checked in API.
+    __table_args__ = (
+        UniqueConstraint("project_id", "ip_assignment_id", "protocol", "port_mode", "port",
+                         name="uq_system_ip_protocol_port"),
+    )
     id = Column(Integer, primary_key=True)
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     ip_assignment_id = Column(Integer, ForeignKey("system_ip_assignments.id", ondelete="CASCADE"), nullable=False)
