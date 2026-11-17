@@ -44,3 +44,38 @@ python -m unittest discover -s tests -p "test_system_configuration.py" -v
 - 별도 HW 목록을 통한 다수 SW-단일 HW 탑재 모델
 - TCP 연결도를 기존 메시지 송수신 관계도에 오버레이하는 기능
 - IP/PORT/장비 식별자 변경 이력과 비교 화면
+
+
+## IP 포트 바인딩 및 TCP/UDP 관계도 (추가 구현)
+
+- **IP·NIC** 탭에서 IP 할당 후 포트 바인딩을 추가합니다.
+  - `TCP` 또는 `UDP`
+  - `FIXED`: 1~65535 범위의 지정 포트
+  - `AUTO`: 사전 포트 번호 없음. 프로그램 실행 시 동적으로 할당된다는 의미로, 임의의 실제 포트 번호를 생성/예약하지 않습니다.
+  - 하나의 IP에서 여러 고정 포트 바인딩을 사용할 수 있습니다.
+- **통신 연결** 탭에서 등록된 `Server IP/PORT 바인딩`과 `Client IP/PORT 바인딩`을 선택합니다. 프로토콜이 다르면 연결을 막습니다.
+- 위 **통신 연결 관계도**는 기존 인터페이스 설계의 SVG 노드/연결선 스타일과 오른쪽 `ReferenceSidePanel` 노드 관리 UI를 재사용합니다.
+  - `+`: 기존 노드 추가/수정 패널 열기
+  - 노드 클릭: 해당 노드 연결 필터, 최대 2개 선택
+  - 노드 더블클릭: 기존 오른쪽 패널에서 노드 수정
+  - 연결선 클릭: 같은 서버 노드 → 클라이언트 노드의 TCP/UDP 연결들을 하단 목록에 표시
+  - 양방향 연결은 서로 구분하며 같은 방향 다중 포트 연결은 관계도에서 하나의 선으로 묶어 표시합니다.
+  - TCP / UDP 필터 및 전체 보기 지원
+- **기존 인터페이스 설계 데이터와 노드 ID를 공유**합니다. 메시지 관계도는 변경하지 않습니다.
+- 사용 중인 포트 바인딩은 연결을 제거하기 전까지 삭제할 수 없고, 할당 IP가 있는 노드의 삭제·체계 정보가 포함된 소스 노드의 머지는 보호합니다.
+- 기존 API의 직접 IP/PORT 등록 방식은 호환성을 위해 남겨 두지만, 새 UI는 포트 바인딩 ID를 참조합니다.
+- 체계 구성 DB 백업·복원에 `system_port_bindings`와 `server_binding_id`/`client_binding_id`를 포함합니다.
+
+### 새 테스트
+
+```powershell
+cd frontend
+npm test
+npm run build
+cd ../backend
+python -m unittest discover -s tests -p "test_system_ports.py" -v
+python -m unittest discover -s tests -p "test_system_configuration.py" -v
+```
+
+GitHub 소스 커밋 및 정적/순수 JS 관계도 검사는 수행했으며,
+실제 React 빌드와 Python DB 연동 테스트는 개발 PC에서 확인해야 합니다.
