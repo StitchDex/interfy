@@ -625,11 +625,56 @@ class SystemIpUpdate(BaseModel):
     note: Optional[str] = None
 
 
+class SystemPortBindingCreate(BaseModel):
+    ip_assignment_id: int
+    protocol: str = "TCP"
+    port_mode: str = "FIXED"
+    port: Optional[int] = Field(default=None, ge=1, le=65535)
+    description: str = ""
+
+    @field_validator("protocol")
+    @classmethod
+    def validate_protocol(cls, value: str) -> str:
+        value = str(value or "").strip().upper()
+        if value not in {"TCP", "UDP"}:
+            raise ValueError("TCP/UDP만 지원합니다.")
+        return value
+
+    @field_validator("port_mode")
+    @classmethod
+    def validate_port_mode(cls, value: str) -> str:
+        value = str(value or "").strip().upper()
+        if value not in {"FIXED", "AUTO"}:
+            raise ValueError("FIXED 또는 AUTO 중 선택하세요.")
+        return value
+
+
+class SystemPortBindingUpdate(BaseModel):
+    protocol: Optional[str] = None
+    port_mode: Optional[str] = None
+    port: Optional[int] = Field(default=None, ge=1, le=65535)
+    description: Optional[str] = None
+
+    @field_validator("protocol")
+    @classmethod
+    def validate_protocol(cls, value: Optional[str]) -> Optional[str]:
+        return SystemPortBindingCreate.validate_protocol(value) if value is not None else None
+
+    @field_validator("port_mode")
+    @classmethod
+    def validate_port_mode(cls, value: Optional[str]) -> Optional[str]:
+        return SystemPortBindingCreate.validate_port_mode(value) if value is not None else None
+
+
 class SystemConnectionCreate(BaseModel):
-    server_ip_id: int
-    server_port: int = Field(ge=1, le=65535)
-    client_ip_id: int
+    # Legacy IP/PORT fields remain optional for the previous connection API.
+    # New UI always uses the two port-binding IDs instead.
+    server_ip_id: Optional[int] = None
+    server_port: Optional[int] = Field(default=None, ge=1, le=65535)
+    client_ip_id: Optional[int] = None
     client_port: Optional[int] = Field(default=None, ge=1, le=65535)
+    server_binding_id: Optional[int] = None
+    client_binding_id: Optional[int] = None
     protocol: str = "TCP"
     note: str = ""
 
@@ -643,6 +688,8 @@ class SystemConnectionCreate(BaseModel):
 
 
 class SystemConnectionUpdate(BaseModel):
+    server_binding_id: Optional[int] = None
+    client_binding_id: Optional[int] = None
     server_ip_id: Optional[int] = None
     server_port: Optional[int] = Field(default=None, ge=1, le=65535)
     client_ip_id: Optional[int] = None
