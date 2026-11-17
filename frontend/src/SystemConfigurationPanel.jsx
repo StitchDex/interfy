@@ -296,7 +296,22 @@ export default function SystemConfigurationPanel({ api, projectId, integrationTa
 
       {loaded && tab === 'ips' && (
         <div className="system-config-stack">
-          <section className="card">
+          <div className="system-config-split">
+          <section className="card system-config-input">
+            <h3>{editingIp == null ? 'IP 할당 추가' : 'IP 할당 수정'}</h3>
+            <form className="system-config-form system-config-form-compact" onSubmit={saveIp}>
+              <NodePicker nodes={nodes} value={ipDraft.node_id} onChange={value => setIpDraft({ ...ipDraft, node_id: value })}/>
+              <label>NIC / IP 구분<input maxLength={120} placeholder="예: NIC1, reserved1" value={ipDraft.interface_name} onChange={e => setIpDraft({ ...ipDraft, interface_name: e.target.value })}/></label>
+              <label>IP 주소<input required placeholder="192.168.7.70" value={ipDraft.ip_address} onChange={e => setIpDraft({ ...ipDraft, ip_address: e.target.value })}/></label>
+              <label className="system-config-check"><input type="checkbox" checked={ipDraft.is_reserved} onChange={e => setIpDraft({ ...ipDraft, is_reserved: e.target.checked })}/> 예약 IP</label>
+              <label className="wide">비고<input value={ipDraft.note} onChange={e => setIpDraft({ ...ipDraft, note: e.target.value })}/></label>
+              <div className="system-config-actions">
+                {editingIp != null && <button type="button" className="ghost" onClick={clearIpForm}>수정 취소</button>}
+                <button type="submit" disabled={busy || !ipDraft.node_id || !ipDraft.ip_address.trim()}><Save size={15}/> {editingIp == null ? 'IP 추가' : '변경 저장'}</button>
+              </div>
+            </form>
+          </section>
+          <section className="card system-config-list">
             <h3>IP 주소 할당</h3>
             <p>예약 주소는 별도 노드가 아니라 해당 SW의 예약 IP로 등록합니다. 프로젝트 내 중복 IP는 차단됩니다.</p>
             <div className="table-wrap"><table className="system-config-table">
@@ -311,45 +326,11 @@ export default function SystemConfigurationPanel({ api, projectId, integrationTa
               {!ips.length && <tr><td colSpan={6}>등록된 IP가 없습니다.</td></tr>}</tbody>
             </table></div>
           </section>
-          <section className="card">
-            <h3>{editingIp == null ? 'IP 할당 추가' : 'IP 할당 수정'}</h3>
-            <form className="system-config-form" onSubmit={saveIp}>
-              <NodePicker nodes={nodes} value={ipDraft.node_id} onChange={value => setIpDraft({ ...ipDraft, node_id: value })}/>
-              <label>NIC / IP 구분<input maxLength={120} placeholder="예: NIC1, reserved1" value={ipDraft.interface_name} onChange={e => setIpDraft({ ...ipDraft, interface_name: e.target.value })}/></label>
-              <label>IP 주소<input required placeholder="192.168.7.70" value={ipDraft.ip_address} onChange={e => setIpDraft({ ...ipDraft, ip_address: e.target.value })}/></label>
-              <label className="system-config-check"><input type="checkbox" checked={ipDraft.is_reserved} onChange={e => setIpDraft({ ...ipDraft, is_reserved: e.target.checked })}/> 예약 IP</label>
-              <label className="wide">비고<input value={ipDraft.note} onChange={e => setIpDraft({ ...ipDraft, note: e.target.value })}/></label>
-              <div className="system-config-actions">
-                {editingIp != null && <button type="button" className="ghost" onClick={clearIpForm}>수정 취소</button>}
-                <button type="submit" disabled={busy || !ipDraft.node_id || !ipDraft.ip_address.trim()}><Save size={15}/> {editingIp == null ? 'IP 추가' : '변경 저장'}</button>
-              </div>
-            </form>
-          </section>
-          <section className="card">
-            <div className="card-title">
-              <div><h3>포트 바인딩</h3><p>IP/NIC별로 TCP·UDP 포트를 여러 개 등록할 수 있어요. AUTO는 동적 포트로, 번호를 사전에 지정하지 않습니다.</p></div>
-              <span className="system-config-count">{bindings.length}개 바인딩</span>
-            </div>
-            <div className="table-wrap"><table className="system-config-table">
-              <thead><tr><th>노드 / NIC</th><th>IP</th><th>프로토콜</th><th>포트</th><th>용도</th><th>관리</th></tr></thead>
-              <tbody>{bindings.map(item => (
-                <tr key={item.id} className={editingPort === item.id ? 'selected' : ''}>
-                  <td>{item.node_name} / {item.interface_name || '기본'}</td>
-                  <td className="mono">{item.ip_address}</td><td>{item.protocol}</td>
-                  <td>{item.port_mode === 'AUTO' ? <strong>AUTO · 동적</strong> : item.port}</td>
-                  <td>{item.description || '—'}</td>
-                  <td><div className="system-config-row-actions">
-                    <button type="button" className="ghost" onClick={() => selectPortForEdit(item)}>수정</button>
-                    <button type="button" className="danger" onClick={() => deletePort(item)} aria-label={`${item.protocol} 포트 삭제`}><Trash2 size={14}/></button>
-                  </div></td>
-                </tr>
-              ))}
-              {!bindings.length && <tr><td colSpan={6}>등록된 포트 바인딩이 없습니다.</td></tr>}</tbody>
-            </table></div>
-          </section>
-          <section className="card">
+          </div>
+          <div className="system-config-split">
+          <section className="card system-config-input">
             <h3>{editingPort == null ? 'IP / PORT 바인딩 추가' : 'IP / PORT 바인딩 수정'}</h3>
-            <form className="system-config-form" onSubmit={savePort}>
+            <form className="system-config-form system-config-form-compact" onSubmit={savePort}>
               <label>IP / NIC
                 <select required value={portDraft.ip_assignment_id} disabled={editingPort !== null} onChange={e => setPortDraft({ ...portDraft, ip_assignment_id: e.target.value })}>
                   <option value="">IP 선택</option>
@@ -381,45 +362,43 @@ export default function SystemConfigurationPanel({ api, projectId, integrationTa
               </div>
             </form>
           </section>
+          <section className="card system-config-list">
+            <div className="card-title">
+              <div><h3>포트 바인딩</h3><p>IP/NIC별로 TCP·UDP 포트를 여러 개 등록할 수 있어요. AUTO는 동적 포트로, 번호를 사전에 지정하지 않습니다.</p></div>
+              <span className="system-config-count">{bindings.length}개 바인딩</span>
+            </div>
+            <div className="table-wrap"><table className="system-config-table">
+              <thead><tr><th>노드 / NIC</th><th>IP</th><th>프로토콜</th><th>포트</th><th>용도</th><th>관리</th></tr></thead>
+              <tbody>{bindings.map(item => (
+                <tr key={item.id} className={editingPort === item.id ? 'selected' : ''}>
+                  <td>{item.node_name} / {item.interface_name || '기본'}</td>
+                  <td className="mono">{item.ip_address}</td><td>{item.protocol}</td>
+                  <td>{item.port_mode === 'AUTO' ? <strong>AUTO · 동적</strong> : item.port}</td>
+                  <td>{item.description || '—'}</td>
+                  <td><div className="system-config-row-actions">
+                    <button type="button" className="ghost" onClick={() => selectPortForEdit(item)}>수정</button>
+                    <button type="button" className="danger" onClick={() => deletePort(item)} aria-label={`${item.protocol} 포트 삭제`}><Trash2 size={14}/></button>
+                  </div></td>
+                </tr>
+              ))}
+              {!bindings.length && <tr><td colSpan={6}>등록된 포트 바인딩이 없습니다.</td></tr>}</tbody>
+            </table></div>
+          </section>
+          </div>
         </div>
       )}
 
       {loaded && tab === 'connections' && (
         <div className="system-config-stack">
-          <section className="card" id="system-connection-list">
-            <div className="card-title">
-              <div>
-                <h3>{selectedPairKey ? '선택한 연결선의 TCP / UDP 목록' : selectedGraphNodes.length ? '선택한 노드의 TCP / UDP 목록' : '전체 TCP / UDP 연결 목록'}</h3>
-                <p>{shownConnections.length}개 연결 · 관계도를 선택하면 해당 연결만 표시됩니다.</p>
-              </div>
-              {(selectedPairKey || selectedGraphNodes.length) && <button type="button" className="ghost" onClick={showAllGraph}>필터 해제</button>}
-            </div>
-            <div className="table-wrap"><table className="system-config-table">
-              <thead><tr><th>프로토콜</th><th>Server 노드</th><th>Server IP : PORT</th><th>Client 노드</th><th>Client IP : PORT</th><th>비고</th><th>관리</th></tr></thead>
-              <tbody>{shownConnections.map(item => (
-                <tr key={item.id} className={editingConnection === item.id ? 'selected' : ''}>
-                  <td><strong>{item.protocol}</strong></td><td>{item.server_node_name}</td>
-                  <td className="mono">{item.server_ip} : {item.server_port_mode === 'AUTO' ? 'AUTO' : item.server_port}</td>
-                  <td>{item.client_node_name}</td>
-                  <td className="mono">{item.client_ip} : {item.client_port_mode === 'AUTO' ? 'AUTO' : item.client_port}</td>
-                  <td>{item.note || '—'}</td>
-                  <td><div className="system-config-row-actions">
-                    <button type="button" className="ghost" onClick={() => selectConnectionForEdit(item)}>수정</button>
-                    <button type="button" className="danger" onClick={() => deleteConnection(item)} aria-label={`${item.id} 연결 삭제`}><Trash2 size={14}/></button>
-                  </div></td>
-                </tr>
-              ))}
-              {!shownConnections.length && <tr><td colSpan={7}>해당 관계에 등록된 통신 연결이 없습니다. IP·NIC 탭에서 포트를 먼저 바인딩해 주세요.</td></tr>}</tbody>
-            </table></div>
-          </section>
-          <section className="card">
+          <div className="system-config-split">
+          <section className="card system-config-input">
             <div className="card-title">
               <div><h3>{editingConnection == null ? '통신 연결 추가' : '통신 연결 수정'}</h3>
                 <p>IP·NIC에서 등록한 Server 바인딩과 같은 프로토콜의 Client 바인딩을 선택하세요. AUTO는 포트 번호를 사전에 지정하지 않습니다.</p>
               </div>
               <button type="button" className="ghost" onClick={() => setTab('ips')}>IP·PORT 설정</button>
             </div>
-            <form className="system-config-form" onSubmit={saveConnection}>
+            <form className="system-config-form system-config-form-compact" onSubmit={saveConnection}>
               <label>Server IP / PORT 바인딩
                 <select required value={connectionDraft.server_binding_id} onChange={e => setConnectionDraft({
                   ...connectionDraft, server_binding_id: e.target.value, client_binding_id: '',
@@ -453,8 +432,36 @@ export default function SystemConfigurationPanel({ api, projectId, integrationTa
             </form>
             {!bindings.length && <p className="system-config-inline-hint">포트 바인딩이 아직 없습니다. IP·NIC 탭에서 TCP/UDP 포트를 등록하거나 AUTO로 바인딩해 주세요.</p>}
           </section>
+          <section className="card system-config-list" id="system-connection-list">
+            <div className="card-title">
+              <div>
+                <h3>{selectedPairKey ? '선택한 연결선의 TCP / UDP 목록' : selectedGraphNodes.length ? '선택한 노드의 TCP / UDP 목록' : '전체 TCP / UDP 연결 목록'}</h3>
+                <p>{shownConnections.length}개 연결 · 관계도를 선택하면 해당 연결만 표시됩니다.</p>
+              </div>
+              {(selectedPairKey || selectedGraphNodes.length) && <button type="button" className="ghost" onClick={showAllGraph}>필터 해제</button>}
+            </div>
+            <div className="table-wrap"><table className="system-config-table">
+              <thead><tr><th>프로토콜</th><th>Server 노드</th><th>Server IP : PORT</th><th>Client 노드</th><th>Client IP : PORT</th><th>비고</th><th>관리</th></tr></thead>
+              <tbody>{shownConnections.map(item => (
+                <tr key={item.id} className={editingConnection === item.id ? 'selected' : ''}>
+                  <td><strong>{item.protocol}</strong></td><td>{item.server_node_name}</td>
+                  <td className="mono">{item.server_ip} : {item.server_port_mode === 'AUTO' ? 'AUTO' : item.server_port}</td>
+                  <td>{item.client_node_name}</td>
+                  <td className="mono">{item.client_ip} : {item.client_port_mode === 'AUTO' ? 'AUTO' : item.client_port}</td>
+                  <td>{item.note || '—'}</td>
+                  <td><div className="system-config-row-actions">
+                    <button type="button" className="ghost" onClick={() => selectConnectionForEdit(item)}>수정</button>
+                    <button type="button" className="danger" onClick={() => deleteConnection(item)} aria-label={`${item.id} 연결 삭제`}><Trash2 size={14}/></button>
+                  </div></td>
+                </tr>
+              ))}
+              {!shownConnections.length && <tr><td colSpan={7}>해당 관계에 등록된 통신 연결이 없습니다. IP·NIC 탭에서 포트를 먼저 바인딩해 주세요.</td></tr>}</tbody>
+            </table></div>
+          </section>
+          </div>
         </div>
       )}
+
     </div>
   );
 }
