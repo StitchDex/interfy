@@ -506,6 +506,7 @@ function MessageManagementPage({ api, me, projectId, onBackToProjects, onLogout,
   const [backups, setBackups] = useState([]);
   const [backupEvents, setBackupEvents] = useState([]);
   const [activePanel, setActivePanel] = useState('design');
+  const [systemReferencePanel, setSystemReferencePanel] = useState({ open: false, editTargetId: null });
   const [messageForm, setMessageForm] = useState({ definition_type: 'STRUCT', name: '', struct_name: '', period: '', infocode: '', protocol: '', description: '', enum_underlying_type: 'uint32', label_ids: [], tx_target_ids: [], rx_target_ids: [] });
   const [query, setQuery] = useState('');
   const [draggingMessageId, setDraggingMessageId] = useState(null);
@@ -779,11 +780,33 @@ function MessageManagementPage({ api, me, projectId, onBackToProjects, onLogout,
           />
         )}
         {activePanel === 'systemConfiguration' && (
-          <SystemConfigurationPanel
-            api={api}
-            projectId={projectId}
-            onGoToDesign={() => changePanel('design')}
-          />
+          <>
+            <SystemConfigurationPanel
+              api={api}
+              projectId={projectId}
+              integrationTargets={integrationTargets}
+              onOpenNodeManager={editTargetId => setSystemReferencePanel({
+                open: true, editTargetId: editTargetId ?? null,
+              })}
+            />
+            <ReferenceSidePanel
+              open={systemReferencePanel.open}
+              initialTab="node"
+              nodeOnly
+              initialEditTargetId={systemReferencePanel.editTargetId}
+              api={api}
+              projectId={projectId}
+              labels={labels}
+              targets={integrationTargets}
+              onClose={() => setSystemReferencePanel({ open: false, editTargetId: null })}
+              onCreateTarget={createIntegrationTarget}
+              onUpdateTarget={updateIntegrationTarget}
+              onDeleteTarget={deleteIntegrationTarget}
+              onMerged={async () => {
+                await Promise.all([loadIntegrationTargets(), loadMessages(false)]);
+              }}
+            />
+          </>
         )}
         {activePanel === 'settings' && (
           <ProjectSettingsPanel
@@ -3303,7 +3326,7 @@ function ProjectSettingsPanel({ projectForm, setProjectForm, onSaveProject, onDe
   );
 }
 
-function ReferenceSidePanel({ open, initialTab = 'node', initialEditTargetId = null, api, projectId, labels = [], targets = [], onClose, onCreateLabel, onUpdateLabel, onDeleteLabel, onCreateTarget, onUpdateTarget, onDeleteTarget, onMerged }) {
+function ReferenceSidePanel({ open, initialTab = 'node', initialEditTargetId = null, nodeOnly = false, api, projectId, labels = [], targets = [], onClose, onCreateLabel, onUpdateLabel, onDeleteLabel, onCreateTarget, onUpdateTarget, onDeleteTarget, onMerged }) {
   const [tab, setTab] = useState(initialTab);
   const [nodeForm, setNodeForm] = useState({ name: '', description: '' });
   const [tagForm, setTagForm] = useState({ name: '', description: '' });
@@ -3397,13 +3420,13 @@ function ReferenceSidePanel({ open, initialTab = 'node', initialEditTargetId = n
     <div className="reference-drawer-layer" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose?.(); }}>
       <aside className="reference-drawer" role="dialog" aria-modal="true" aria-label="노드 및 태그 추가">
         <div className="reference-drawer-head">
-          <div><strong>추가</strong><span>노드와 태그를 현재 화면에서 관리합니다.</span></div>
+          <div><strong>{nodeOnly ? '노드 관리' : '추가'}</strong><span>{nodeOnly ? '인터페이스 설계와 동일한 노드 목록을 관리합니다.' : '노드와 태그를 현재 화면에서 관리합니다.'}</span></div>
           <button type="button" className="icon ghost-icon reference-drawer-close" aria-label="닫기" title="닫기" onClick={onClose}>×</button>
         </div>
 
         <div className="reference-drawer-tabs" role="tablist" aria-label="추가 항목">
           <button type="button" role="tab" aria-selected={isNodeTab} className={isNodeTab ? 'active' : ''} onClick={() => changeTab('node')}>노드 <em>{targets.length}</em></button>
-          <button type="button" role="tab" aria-selected={!isNodeTab} className={!isNodeTab ? 'active' : ''} onClick={() => changeTab('tag')}>태그 <em>{labels.length}</em></button>
+          {!nodeOnly && <button type="button" role="tab" aria-selected={!isNodeTab} className={!isNodeTab ? 'active' : ''} onClick={() => changeTab('tag')}>태그 <em>{labels.length}</em></button>}
         </div>
 
         {isNodeTab ? (
