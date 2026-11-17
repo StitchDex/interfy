@@ -23,12 +23,12 @@ test('system configuration exposes three modules with CRUD forms', () => {
   assert.match(panel, /api\.del\(/);
 });
 
-test('device profile links to existing node identity, reserved IP and named server/client endpoints', () => {
+test('device profile links to existing node identity, reserved IP and binding-based server/client endpoints', () => {
   assert.match(panel, /item\.node_id/);
   assert.match(panel, /hardware_name/);
   assert.match(panel, /software_id/);
   assert.match(panel, /is_reserved/);
-  assert.match(panel, /server_ip_id/);
-  assert.match(panel, /client_ip_id/);
+  assert.match(panel, /server_binding_id/);
+  assert.match(panel, /client_binding_id/);
   assert.match(styles, /\.system-config-form/);
 });
